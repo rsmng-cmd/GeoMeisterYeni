@@ -57,14 +57,7 @@
   }
 }
 
-/* ─── Leaflet Harita Katmanı (Tüm Tarayıcılarda %100 Kararlı & Birebir Aynı Renkler) ─── */
-.leaflet-container,
-.leaflet-tile-pane,
-.leaflet-tile,
-#map-container {
-  forced-color-adjust: none !important;
-  -webkit-forced-color-adjust: none !important;
-}
+
 
 /* Standart / Aydınlık Mod: Koyu gri karalar ve net ayrıştırılmış sular */
 [data-theme="light"] .leaflet-tile-pane {
