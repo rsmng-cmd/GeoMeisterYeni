@@ -35,6 +35,11 @@ export class ScoreService {
     this._cleanLocalGuestScores();
   }
 
+  _canUseFirestore(user = null) {
+    if (user && isGuestUser(user)) return false;
+    return !!(firebaseReady && db && fsFns);
+  }
+
   // ─── Skor Kaydetme ──────────────────────────────────────────
 
   async saveScore(user, gameResult) {
@@ -381,6 +386,24 @@ export class ScoreService {
       if (history.length > 2500) history.shift();
       localStorage.setItem('geomeister_round_history', JSON.stringify(history));
     } catch {}
+
+    // Firestore'a kaydet (Farklı domainlerde ve cihazlarda ısı haritasının korunması için)
+    if (this._canUseFirestore(user)) {
+      try {
+        const entry = {
+          uid: user.uid,
+          modeId: modeId || 'world',
+          timestamp: fsFns.serverTimestamp(),
+          lat: roundData.city?.lat ?? roundData.lat,
+          lng: roundData.city?.lng ?? roundData.lng,
+          city: roundData.city?.name ?? roundData.city ?? 'Bölge',
+          country: roundData.city?.country ?? roundData.country ?? '',
+          score: roundData.score || 0,
+          distance: roundData.distanceKm ?? roundData.distance ?? 0,
+        };
+        fsFns.addDoc(fsFns.collection(db, 'roundGuesses'), entry).catch(() => {});
+      } catch {}
+    }
   }
 
   /**
