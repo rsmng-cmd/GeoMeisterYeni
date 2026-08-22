@@ -3,16 +3,19 @@
  * Email/password kayıt, giriş, "beni hatırla", misafir modu.
  */
 
-import { auth, firebaseReady } from '../config/firebase.js';
+import { auth, firebaseReady, initFirebase } from '../config/firebase.js';
 
 // Firebase auth fonksiyonlarını dinamik yükle
 let authFns = null;
-if (firebaseReady && auth) {
+async function getAuthFns() {
+  if (authFns) return authFns;
   try {
     authFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+    return authFns;
   } catch (e) {
     console.warn('[AuthService] Firebase auth modülü yüklenemedi:', e.message);
   }
+  return null;
 }
 
 export class AuthService {
@@ -20,9 +23,15 @@ export class AuthService {
     this.currentUser = null;
     this._listeners = [];
 
-    // Firebase auth varsa state dinle (sayfa yenilemelerinde oturumu geri yükler)
-    if (auth && authFns) {
-      authFns.onAuthStateChanged(auth, (user) => {
+    // Arka planda auth dinleyicisini başlat (top-level await olmadan)
+    this._initAuthListener();
+  }
+
+  async _initAuthListener() {
+    await initFirebase();
+    const fns = await getAuthFns();
+    if (auth && fns) {
+      fns.onAuthStateChanged(auth, (user) => {
         // Eğer kullanıcı aktif olarak Misafir moduna girdiyse ve Firebase null dönerse misafiri bozma!
         if (this.currentUser?.isGuest && !user) {
           return;
@@ -52,9 +61,11 @@ export class AuthService {
    * Email/password ile kayıt ol.
    */
   async register(email, password, displayName) {
-    if (!auth || !authFns) throw { code: 'auth/network-request-failed' };
-    const credential = await authFns.createUserWithEmailAndPassword(auth, email, password);
-    await authFns.updateProfile(credential.user, { displayName });
+    await initFirebase();
+    const fns = await getAuthFns();
+    if (!auth || !fns) throw { code: 'auth/network-request-failed' };
+    const credential = await fns.createUserWithEmailAndPassword(auth, email, password);
+    await fns.updateProfile(credential.user, { displayName });
     return credential;
   }
 
@@ -62,8 +73,10 @@ export class AuthService {
    * Email/password ile giriş yap.
    */
   async login(email, password) {
-    if (!auth || !authFns) throw { code: 'auth/network-request-failed' };
-    return authFns.signInWithEmailAndPassword(auth, email, password);
+    await initFirebase();
+    const fns = await getAuthFns();
+    if (!auth || !fns) throw { code: 'auth/network-request-failed' };
+    return fns.signInWithEmailAndPassword(auth, email, password);
   }
 
   /**
@@ -75,8 +88,9 @@ export class AuthService {
       this._listeners.forEach((cb) => cb(null));
       return;
     }
-    if (auth && authFns) {
-      return authFns.signOut(auth);
+    const fns = await getAuthFns();
+    if (auth && fns) {
+      return fns.signOut(auth);
     }
     this.currentUser = null;
     this._listeners.forEach((cb) => cb(null));

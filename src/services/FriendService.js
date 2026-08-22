@@ -7,12 +7,17 @@
 import { db, firebaseReady } from '../config/firebase.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[FriendService] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[FriendService] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
 const FRIENDS_KEY = 'geomeister_friends';
@@ -34,11 +39,12 @@ export class FriendService {
     const queryLower = query.toLowerCase();
 
     // Firestore'da ara
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const usersRef = fsFns.collection(db, 'users');
+        const usersRef = fns.collection(db, 'users');
         const snapshot = await Promise.race([
-          fsFns.getDocs(fsFns.query(usersRef, fsFns.limit(100))),
+          fns.getDocs(fns.query(usersRef, fns.limit(100))),
           new Promise(resolve => setTimeout(() => resolve(null), 2000)),
         ]);
 
@@ -114,23 +120,24 @@ export class FriendService {
     }
 
     // Firestore
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const q = fsFns.query(
-          fsFns.collection(db, 'friendRequests'),
-          fsFns.where('fromUid', '==', fromUser.uid),
-          fsFns.where('toUid', '==', toUid),
-          fsFns.where('status', '==', 'pending')
+        const q = fns.query(
+          fns.collection(db, 'friendRequests'),
+          fns.where('fromUid', '==', fromUser.uid),
+          fns.where('toUid', '==', toUid),
+          fns.where('status', '==', 'pending')
         );
         const snap = await Promise.race([
-          fsFns.getDocs(q),
+          fns.getDocs(q),
           new Promise(r => setTimeout(() => r(null), 1500))
         ]);
 
         if (!snap || snap.docs.length === 0) {
-          await fsFns.addDoc(fsFns.collection(db, 'friendRequests'), {
+          await fns.addDoc(fns.collection(db, 'friendRequests'), {
             ...request,
-            createdAt: fsFns.serverTimestamp(),
+            createdAt: fns.serverTimestamp(),
           });
         }
       } catch (e) {
@@ -147,7 +154,8 @@ export class FriendService {
   async cancelFriendRequest(fromUid, toUid) {
     if (!fromUid || !toUid) return;
     this._removeRequestLocalByUsers(fromUid, toUid);
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       await this._deleteFirestoreRequests(fromUid, toUid);
     }
   }
@@ -176,17 +184,18 @@ export class FriendService {
     this._removeRequestLocalByUsers(fromUid, currentUser.uid);
 
     // Firestore sync
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         // Arkadaşlık belgesini oluştur
         const friendDocId = [currentUser.uid, fromUid].sort().join('_');
-        await fsFns.setDoc(fsFns.doc(db, 'friendships', friendDocId), {
+        await fns.setDoc(fns.doc(db, 'friendships', friendDocId), {
           users: [currentUser.uid, fromUid],
           userNames: {
             [currentUser.uid]: currentUser.displayName,
             [fromUid]: fromName,
           },
-          createdAt: fsFns.serverTimestamp(),
+          createdAt: fns.serverTimestamp(),
         });
 
         // Bekleyen istekleri Firestore'dan temizle
@@ -211,7 +220,8 @@ export class FriendService {
 
     if (fromUid && toUid) {
       this._removeRequestLocalByUsers(fromUid, toUid);
-      if (db && fsFns) {
+      const fns = await getFsFns();
+      if (db && fns) {
         await this._deleteFirestoreRequests(fromUid, toUid);
       }
     }
@@ -235,10 +245,11 @@ export class FriendService {
     }
 
     // 2) Firestore'dan sil
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         const friendDocId = [currentUid, friendUid].sort().join('_');
-        await fsFns.deleteDoc(fsFns.doc(db, 'friendships', friendDocId)).catch(() => {});
+        await fns.deleteDoc(fns.doc(db, 'friendships', friendDocId)).catch(() => {});
       } catch (e) {
         console.warn('[FriendService] Firestore removeFriend error:', e);
       }
@@ -254,14 +265,15 @@ export class FriendService {
     let friends = this._getFriendsLocal(user.uid);
 
     // Firestore'dan güncelle
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const q = fsFns.query(
-          fsFns.collection(db, 'friendships'),
-          fsFns.where('users', 'array-contains', user.uid)
+        const q = fns.query(
+          fns.collection(db, 'friendships'),
+          fns.where('users', 'array-contains', user.uid)
         );
         const snap = await Promise.race([
-          fsFns.getDocs(q),
+          fns.getDocs(q),
           new Promise(resolve => setTimeout(() => resolve(null), 2000)),
         ]);
         if (snap) {
@@ -309,28 +321,29 @@ export class FriendService {
     if (recvReq) return 'pending_received';
 
     // Firestore kontrolü
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const qSent = fsFns.query(
-          fsFns.collection(db, 'friendRequests'),
-          fsFns.where('fromUid', '==', currentUid),
-          fsFns.where('toUid', '==', targetUid),
-          fsFns.where('status', '==', 'pending')
+        const qSent = fns.query(
+          fns.collection(db, 'friendRequests'),
+          fns.where('fromUid', '==', currentUid),
+          fns.where('toUid', '==', targetUid),
+          fns.where('status', '==', 'pending')
         );
         const snapSent = await Promise.race([
-          fsFns.getDocs(qSent),
+          fns.getDocs(qSent),
           new Promise(r => setTimeout(() => r(null), 1500))
         ]);
         if (snapSent && snapSent.docs.length > 0) return 'pending_sent';
 
-        const qRecv = fsFns.query(
-          fsFns.collection(db, 'friendRequests'),
-          fsFns.where('fromUid', '==', targetUid),
-          fsFns.where('toUid', '==', currentUid),
-          fsFns.where('status', '==', 'pending')
+        const qRecv = fns.query(
+          fns.collection(db, 'friendRequests'),
+          fns.where('fromUid', '==', targetUid),
+          fns.where('toUid', '==', currentUid),
+          fns.where('status', '==', 'pending')
         );
         const snapRecv = await Promise.race([
-          fsFns.getDocs(qRecv),
+          fns.getDocs(qRecv),
           new Promise(r => setTimeout(() => r(null), 1500))
         ]);
         if (snapRecv && snapRecv.docs.length > 0) return 'pending_received';
@@ -353,15 +366,16 @@ export class FriendService {
     );
 
     // Firestore'dan güncelle
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const q = fsFns.query(
-          fsFns.collection(db, 'friendRequests'),
-          fsFns.where('toUid', '==', user.uid),
-          fsFns.where('status', '==', 'pending')
+        const q = fns.query(
+          fns.collection(db, 'friendRequests'),
+          fns.where('toUid', '==', user.uid),
+          fns.where('status', '==', 'pending')
         );
         const snap = await Promise.race([
-          fsFns.getDocs(q),
+          fns.getDocs(q),
           new Promise(resolve => setTimeout(() => resolve(null), 2000)),
         ]);
         if (snap && snap.docs.length > 0) {
@@ -420,11 +434,12 @@ export class FriendService {
     localStorage.setItem(INVITES_KEY, JSON.stringify(invites));
 
     // Firestore
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        await fsFns.setDoc(fsFns.doc(db, 'gameInvites', invite.id), {
+        await fns.setDoc(fns.doc(db, 'gameInvites', invite.id), {
           ...invite,
-          createdAt: fsFns.serverTimestamp(),
+          createdAt: fns.serverTimestamp(),
         });
       } catch (e) {
         console.warn('[FriendService] Invite send error:', e);
@@ -437,8 +452,10 @@ export class FriendService {
   /**
    * Gelen oyun davetlerini dinler (10 saniyeden eski veya geçersiz istekleri eler).
    */
-  listenForInvites(user, callback) {
+  async listenForInvites(user, callback) {
     if (!user?.uid) return;
+
+    const fns = await getFsFns();
 
     const isInviteValid = async (invite) => {
       if (!invite) return false;
@@ -449,16 +466,16 @@ export class FriendService {
 
       // 1. Gerçek hayattaki 10 saniye kuralı
       if (now - inviteTime > 10000) {
-        if (db && fsFns && invite.id) {
-          fsFns.deleteDoc(fsFns.doc(db, 'gameInvites', invite.id)).catch(() => {});
+        if (db && fns && invite.id) {
+          fns.deleteDoc(fns.doc(db, 'gameInvites', invite.id)).catch(() => {});
         }
         return false;
       }
 
       // 2. Eğer lobi kodu varsa, odanın hala 'waiting' durumunda olup olmadığını kontrol et
-      if (invite.roomCode && db && fsFns) {
+      if (invite.roomCode && db && fns) {
         try {
-          const roomSnap = await fsFns.getDoc(fsFns.doc(db, 'customRooms', invite.roomCode));
+          const roomSnap = await fns.getDoc(fns.doc(db, 'customRooms', invite.roomCode));
           if (!roomSnap.exists()) return false;
           const roomData = roomSnap.data();
           if (roomData.status !== 'waiting') return false;
@@ -471,14 +488,14 @@ export class FriendService {
     };
 
     // Firestore listener
-    if (db && fsFns) {
+    if (db && fns) {
       try {
-        const q = fsFns.query(
-          fsFns.collection(db, 'gameInvites'),
-          fsFns.where('toUid', '==', user.uid),
-          fsFns.where('status', '==', 'pending')
+        const q = fns.query(
+          fns.collection(db, 'gameInvites'),
+          fns.where('toUid', '==', user.uid),
+          fns.where('status', '==', 'pending')
         );
-        this._inviteListener = fsFns.onSnapshot(q, (snapshot) => {
+        this._inviteListener = fns.onSnapshot(q, (snapshot) => {
           snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
               const inviteData = { id: change.doc.id, ...change.doc.data() };
@@ -559,22 +576,23 @@ export class FriendService {
   }
 
   async _deleteFirestoreRequests(uid1, uid2) {
-    if (!db || !fsFns) return;
+    const fns = await getFsFns();
+    if (!db || !fns) return;
     try {
-      const q1 = fsFns.query(
-        fsFns.collection(db, 'friendRequests'),
-        fsFns.where('fromUid', '==', uid1),
-        fsFns.where('toUid', '==', uid2)
+      const q1 = fns.query(
+        fns.collection(db, 'friendRequests'),
+        fns.where('fromUid', '==', uid1),
+        fns.where('toUid', '==', uid2)
       );
-      const q2 = fsFns.query(
-        fsFns.collection(db, 'friendRequests'),
-        fsFns.where('fromUid', '==', uid2),
-        fsFns.where('toUid', '==', uid1)
+      const q2 = fns.query(
+        fns.collection(db, 'friendRequests'),
+        fns.where('fromUid', '==', uid2),
+        fns.where('toUid', '==', uid1)
       );
 
       const [snap1, snap2] = await Promise.all([
-        fsFns.getDocs(q1).catch(() => null),
-        fsFns.getDocs(q2).catch(() => null)
+        fns.getDocs(q1).catch(() => null),
+        fns.getDocs(q2).catch(() => null)
       ]);
 
       const docsToDelete = [];
@@ -582,10 +600,12 @@ export class FriendService {
       if (snap2) snap2.docs.forEach(d => docsToDelete.push(d.ref));
 
       for (const ref of docsToDelete) {
-        await fsFns.deleteDoc(ref).catch(e => console.warn('[FriendService] deleteDoc error:', e));
+        await fns.deleteDoc(ref).catch(e => console.warn('[FriendService] deleteDoc error:', e));
       }
     } catch (e) {
       console.warn('[FriendService] _deleteFirestoreRequests error:', e);
     }
   }
 }
+
+export default new FriendService();

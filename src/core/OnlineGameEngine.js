@@ -9,12 +9,17 @@ import { getSeededQuestions } from '../utils/seededQuestions.js';
 import { db, firebaseReady } from '../config/firebase.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[OnlineGameEngine] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[OnlineGameEngine] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
 export class OnlineGameEngine {
@@ -266,13 +271,14 @@ export class OnlineGameEngine {
       localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(initialDoc));
     } catch {}
 
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const ref = fsFns.doc(db, 'liveMatches', this.matchId);
-        await fsFns.setDoc(ref, initialDoc, { merge: true });
+        const ref = fns.doc(db, 'liveMatches', this.matchId);
+        await fns.setDoc(ref, initialDoc, { merge: true });
 
         // Firestore Listener
-        this.matchUnsubscribe = fsFns.onSnapshot(ref, (docSnap) => {
+        this.matchUnsubscribe = fns.onSnapshot(ref, (docSnap) => {
           if (!docSnap.exists()) return;
           const data = docSnap.data();
           this._handleLiveMatchUpdate(data);
