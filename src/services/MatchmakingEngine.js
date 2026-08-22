@@ -4,12 +4,17 @@ import { db, firebaseReady } from '../config/firebase.js';
 import { haversineDistance, distanceToScore } from '../core/Scorer.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[MatchmakingEngine] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[MatchmakingEngine] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
 export class MatchmakingEngine {
@@ -42,10 +47,11 @@ export class MatchmakingEngine {
 
     // Kendi sunucu / Firestore kuyruk kaydını oluştur (non-blocking)
     this.currentUser = user;
-    if (user && !user.isGuest && db && fsFns) {
+    const fns = await getFsFns();
+    if (user && !user.isGuest && db && fns) {
       try {
-        this.queueDocRef = fsFns.doc(db, 'matchmakingQueue', user.uid);
-        fsFns.setDoc(this.queueDocRef, {
+        this.queueDocRef = fns.doc(db, 'matchmakingQueue', user.uid);
+        fns.setDoc(this.queueDocRef, {
           uid: user.uid,
           displayName: user.displayName || 'Oyuncu',
           modeId,
@@ -180,10 +186,11 @@ export class MatchmakingEngine {
     this._cleanupQueueDoc();
   }
 
-  _cleanupQueueDoc() {
-    if (this.queueDocRef && fsFns) {
+  async _cleanupQueueDoc() {
+    const fns = await getFsFns();
+    if (this.queueDocRef && fns) {
       try {
-        fsFns.deleteDoc(this.queueDocRef).catch(() => {});
+        fns.deleteDoc(this.queueDocRef).catch(() => {});
       } catch {}
       this.queueDocRef = null;
     }
@@ -196,16 +203,17 @@ export class MatchmakingEngine {
   }
 
   async _findRealOpponent(user, modeId, playerElo, maxEloDiff) {
-    if (!user || user.isGuest || !db || !fsFns) return null;
+    const fns = await getFsFns();
+    if (!user || user.isGuest || !db || !fns) return null;
     try {
-      const q = fsFns.query(
-        fsFns.collection(db, 'matchmakingQueue'),
-        fsFns.where('modeId', '==', modeId),
-        fsFns.where('status', '==', 'waiting')
+      const q = fns.query(
+        fns.collection(db, 'matchmakingQueue'),
+        fns.where('modeId', '==', modeId),
+        fns.where('status', '==', 'waiting')
       );
 
       const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
-      const snap = await Promise.race([fsFns.getDocs(q), timeoutPromise]);
+      const snap = await Promise.race([fns.getDocs(q), timeoutPromise]);
 
       if (!snap || !snap.docs) return null;
 
@@ -219,14 +227,14 @@ export class MatchmakingEngine {
             : (data.joinedAt?.toMillis ? data.joinedAt.toMillis() : new Date(data.joinedAt || 0).getTime());
 
           if (!joinedTime || now - joinedTime > 15000) {
-            fsFns.deleteDoc(docSnap.ref).catch(() => {});
+            fns.deleteDoc(docSnap.ref).catch(() => {});
             continue;
           }
 
           const eloDiff = Math.abs((data.elo || 50) - playerElo);
           if (eloDiff <= maxEloDiff) {
             // Eşleşme bulundu, rakibin kuyruk kaydını sil
-            fsFns.deleteDoc(docSnap.ref).catch(() => {});
+            fns.deleteDoc(docSnap.ref).catch(() => {});
             return {
               uid: data.uid,
               displayName: data.displayName || 'Rakip',

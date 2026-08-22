@@ -228,24 +228,41 @@ export class OnlineGameEngine {
   }
 
   /**
-   * Canlı maç belgesi güncellendiğinde gelen veriyi işler (Tahminler, Hükmen Çıkış)
+   * Canlı maç belgesi güncellendiğinde gelen veriyi işler (Tahminler, Hükmen Çıkış, Bitiş)
    */
   _handleLiveMatchUpdate(data) {
     if (!data || this.phase === 'finished') return;
 
-    // 1. Eğer rakip oyunu terk ettiyse -> Otomatik Hükmen Galibiyet
-    if (data.status === 'forfeit' && data.forfeitedBy && data.forfeitedBy !== this.user.uid) {
-      this._handleOpponentForfeit();
+    const oppUid = this.playersState.opponent.uid;
+
+    // 1. Eğer maç hükmen sonlandıysa (AFK / Sekmeden çıkma / Terk etme)
+    if (data.status === 'forfeit') {
+      if (data.forfeitedBy === this.user.uid || (data.winnerUid && data.winnerUid !== this.user.uid)) {
+        // Bu oyuncu AFK kaldı veya sekme dışına çıktı -> Hükmen Mağlubiyet
+        this._handleSelfForfeit(data);
+      } else {
+        // Rakip AFK kaldı veya oyundan ayrıldı -> Hükmen Galibiyet
+        this._handleOpponentForfeit(data);
+      }
       return;
     }
 
-    // 2. Eğer ilk başta sorular senkronize edildiyse
+    // 2. Eğer maç normal olarak sonlandıysa (10 soru bittiyse)
+    if (data.status === 'finished') {
+      const oppFinalScore = data[`finalScore_${oppUid}`] ?? data.players?.[oppUid]?.score;
+      if (oppFinalScore !== undefined) {
+        this.playersState.opponent.score = oppFinalScore;
+      }
+      this._finishGame(true);
+      return;
+    }
+
+    // 3. Eğer ilk başta sorular senkronize edildiyse
     if (data.questions && data.questions.length >= this.totalRounds && (!this.questions || this.questions.length === 0)) {
       this.questions = data.questions;
     }
 
-    // 3. Rakibin bu tura ait cevabı geldiyse
-    const oppUid = this.playersState.opponent.uid;
+    // 4. Rakibin bu tura ait cevabı geldiyse
     const oppGuessKey = `guess_${this.currentRoundIndex}_${oppUid}`;
     const oppGuess = data[oppGuessKey];
 
@@ -612,6 +629,46 @@ export class OnlineGameEngine {
   }
 
   /**
+   * Oyuncu AFK Kaldığında veya Sekme Dışına Çıktığında Hükmen Mağlup Sayılır
+   */
+  async _handleSelfForfeit(data = null) {
+    if (this.phase === 'finished') return;
+    this.phase = 'finished';
+
+    this.destroy();
+
+    const reason = data?.forfeitDetails || '10 saniye sekme dışı veya 30 saniye hareketsiz (AFK) kaldığınız için hükmen mağlup sayıldınız.';
+
+    let eloResult = {
+      oldElo: 1000,
+      newElo: 990,
+      eloDelta: -10,
+      isRanked: true,
+      rank: { name: 'Oyuncu', color: '#38bdf8', icon: '🏆' },
+    };
+
+    if (!this.isFriendMatch && this.user && !this.user.isGuest) {
+      try {
+        eloResult = await onlineService.updateMatchResult(this.user, this.modeConfig.id, false);
+      } catch {}
+    }
+
+    if (typeof this.onGameOver === 'function') {
+      this.onGameOver({
+        isWin: false,
+        isForfeit: true,
+        forfeitReason: 'afk',
+        forfeitDetails: reason,
+        me: this.playersState.me || { score: this.playersState.me?.score || 0, displayName: 'Siz' },
+        opponent: this.playersState.opponent || { score: this.playersState.opponent?.score || 0, displayName: 'Rakip' },
+        eloResult,
+        mode: this.modeConfig,
+        rounds: this.playerRounds || [],
+      });
+    }
+  }
+
+  /**
    * Rakip Oyuncu Maçı Terk Ettiğinde veya AFK Kaldığında Çağrılır (Hükmen Galibiyet)
    */
   async _handleOpponentForfeit(forfeitData = null) {
@@ -667,6 +724,7 @@ export class OnlineGameEngine {
     const forfeitData = {
       status: 'forfeit',
       forfeitedBy: this.user?.uid || 'guest',
+      forfeitReason: 'leave',
       winnerUid: this.playersState.opponent.uid,
       updatedAt: Date.now(),
     };
@@ -699,7 +757,8 @@ export class OnlineGameEngine {
   /**
    * MAÇ BİTTİ: ELO Güncellemesi & Sonuçlar
    */
-  async _finishGame() {
+  async _finishGame(fromRemote = false) {
+    if (this.phase === 'finished') return;
     this.phase = 'finished';
     if (this.roundTimer) clearInterval(this.roundTimer);
     if (this.phaseTimer) clearTimeout(this.phaseTimer);
@@ -709,6 +768,31 @@ export class OnlineGameEngine {
     const oppScore = this.playersState.opponent?.score || 0;
     const isWin = meScore >= oppScore;
     if (isWin) soundService.playWin();
+
+    // Firestore & localStorage'a maçın bittiğini ve skorumuzu yaz
+    if (!fromRemote && !this.playersState.opponent.isBot) {
+      const matchEndData = {
+        status: 'finished',
+        [`finalScore_${this.user.uid}`]: meScore,
+        [`rounds_${this.user.uid}`]: this.playerRounds || [],
+        updatedAt: Date.now(),
+      };
+
+      try {
+        const raw = localStorage.getItem(`gm_live_${this.matchId}`);
+        const obj = raw ? JSON.parse(raw) : {};
+        Object.assign(obj, matchEndData);
+        localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
+      } catch {}
+
+      if (db) {
+        try {
+          const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+          const ref = doc(db, 'liveMatches', this.matchId);
+          await setDoc(ref, matchEndData, { merge: true });
+        } catch (e) {}
+      }
+    }
 
     // ELO Güncellemesi (Maksimum 1.2 sn bekle, takılma riskine karşı fail-safe)
     let eloResult = {
