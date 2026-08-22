@@ -274,6 +274,18 @@ export class OnlineUI {
   }
 
   hide() {
+    const lobbyEl = document.getElementById('room-lobby-overlay');
+    const isInLobby = (lobbyEl && !lobbyEl.classList.contains('hidden')) || !!roomManager.currentRoom;
+
+    if (isInLobby) {
+      this._showLeaveLobbyConfirmation(() => {
+        this._forceLeaveLobby();
+        this.container?.classList.add('hidden');
+        matchmakingEngine.cancelSearch();
+      });
+      return;
+    }
+
     this.container?.classList.add('hidden');
     matchmakingEngine.cancelSearch();
     roomManager.stopListening();
@@ -429,8 +441,49 @@ export class OnlineUI {
   }
 
   _handleLeaveLobby() {
-    roomManager.stopListening();
+    this._showLeaveLobbyConfirmation(() => {
+      this._forceLeaveLobby();
+    });
+  }
+
+  _forceLeaveLobby() {
+    if (roomManager.currentRoom) {
+      roomManager.leaveRoom(roomManager.currentRoom.code, this.currentUser);
+    } else {
+      roomManager.stopListening();
+    }
     document.getElementById('room-lobby-overlay')?.classList.add('hidden');
+  }
+
+  _showLeaveLobbyConfirmation(onConfirm) {
+    let existing = document.getElementById('leave-lobby-confirm-modal');
+    if (existing) existing.remove();
+
+    const modalHTML = `
+      <div id="leave-lobby-confirm-modal" class="modal-backdrop" style="z-index: 9999999 !important; display: flex !important; align-items: center !important; justify-content: center !important;">
+        <div class="online-modal-card text-center" style="max-width: 400px; padding: 24px; background: #0f172a; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 16px;">
+          <div style="font-size: 40px; margin-bottom: 8px;">🚪</div>
+          <h3 style="font-size: 18px; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">Lobiden Ayrıl</h3>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
+            Lobiden çıkış yapmak istediğinize emin misiniz? Çıkış yaparsanız oda bağlantınız sonlandırılacaktır.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-confirm-leave-lobby" class="btn btn-danger btn-full" style="background: #ef4444; border-color: #ef4444; color: white; padding: 10px; font-weight: 700; border-radius: 8px;">Evet, Lobiden Çık</button>
+            <button id="btn-cancel-leave-lobby" class="btn btn-outline btn-full" style="padding: 10px; border-radius: 8px;">İptal</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('btn-confirm-leave-lobby')?.addEventListener('click', () => {
+      document.getElementById('leave-lobby-confirm-modal')?.remove();
+      if (typeof onConfirm === 'function') onConfirm();
+    });
+
+    document.getElementById('btn-cancel-leave-lobby')?.addEventListener('click', () => {
+      document.getElementById('leave-lobby-confirm-modal')?.remove();
+    });
   }
 
   /**

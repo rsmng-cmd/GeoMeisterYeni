@@ -75,8 +75,10 @@ export class OnlineGameEngine {
 
     // AFK Takip Değişkenleri (10s Sekme Dışı, 30s Hareketsiz)
     this._lastUserActionTime = Date.now();
+    this._lastOpponentHeartbeatTime = Date.now();
     this._afkCheckTimer = null;
     this._visibilityAfkTimer = null;
+    this._heartbeatSenderTimer = null;
 
     // Dinamik Bot Zorluğu Gücü
     this.currentBotPower = matchData.opponent?.targetAvgScore || 350;
@@ -130,6 +132,7 @@ export class OnlineGameEngine {
 
   _startAfkMonitoring() {
     this._recordUserAction();
+    this._lastOpponentHeartbeatTime = Date.now();
 
     // Kullanıcı etkileşimlerini dinle (hareket, tıklama, tuş)
     this._userActionListener = () => this._recordUserAction();
@@ -139,14 +142,34 @@ export class OnlineGameEngine {
     window.addEventListener('touchstart', this._userActionListener, { passive: true });
     window.addEventListener('wheel', this._userActionListener, { passive: true });
 
-    // 1) 30 Saniye Boyunca Hiçbir Hareket Yapılmadıysa AFK Hükmen Mağlubiyet
+    // Canlı insan maçında her 3 saniyede bir kalp atışı (heartbeat) gönder
+    if (!this.playersState.opponent.isBot) {
+      if (this._heartbeatSenderTimer) clearInterval(this._heartbeatSenderTimer);
+      this._heartbeatSenderTimer = setInterval(() => {
+        if (this.phase !== 'finished' && this.phase !== 'idle') {
+          this._sendHeartbeat();
+        }
+      }, 3000);
+    }
+
+    // 1) 30 Saniye Boyunca Hiçbir Hareket Yapılmadıysa AFK Hükmen Mağlubiyet (Kendisi veya Rakip)
     if (this._afkCheckTimer) clearInterval(this._afkCheckTimer);
     this._afkCheckTimer = setInterval(() => {
       if (this.phase !== 'finished' && this.phase !== 'idle') {
-        const idleDuration = Date.now() - this._lastUserActionTime;
-        if (idleDuration >= 30_000) {
-          console.warn('[OnlineGameEngine] ⏱️ 30 saniye hareketsizlik tespit edildi (AFK Forfeit).');
+        const myIdleDuration = Date.now() - this._lastUserActionTime;
+        if (myIdleDuration >= 30_000) {
+          console.warn('[OnlineGameEngine] ⏱️ 30 saniye hareketsizlik tespit edildi (Kendi AFK Forfeit).');
           this._triggerAfkForfeit('30 saniye boyunca herhangi bir hareket (tıklama, kaydırma, zoom) yapmadığınız (AFK) için maç kaybedildi.');
+          return;
+        }
+
+        // Rakip insan ise ve 30 saniyedir hiçbir kalp atışı veya işlem göndermediyse rakip AFK sayılır
+        if (!this.playersState.opponent.isBot) {
+          const oppIdleDuration = Date.now() - this._lastOpponentHeartbeatTime;
+          if (oppIdleDuration >= 30_000 && !this.playersState.opponent.currentGuess) {
+            console.warn('[OnlineGameEngine] ⏱️ Rakip 30 saniyedir hareketsiz / yanıt vermiyor (Opponent AFK Forfeit).');
+            this._forfeitOpponentDueToInactivity();
+          }
         }
       }
     }, 1000);
@@ -170,6 +193,54 @@ export class OnlineGameEngine {
       }
     };
     document.addEventListener('visibilitychange', this._visibilityHandler);
+  }
+
+  async _sendHeartbeat() {
+    const key = `heartbeat_${this.user.uid}`;
+    try {
+      const raw = localStorage.getItem(`gm_live_${this.matchId}`);
+      const obj = raw ? JSON.parse(raw) : {};
+      obj[key] = Date.now();
+      localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
+    } catch {}
+
+    if (db) {
+      try {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const ref = doc(db, 'liveMatches', this.matchId);
+        await setDoc(ref, { [key]: Date.now() }, { merge: true });
+      } catch (e) {}
+    }
+  }
+
+  async _forfeitOpponentDueToInactivity() {
+    if (this.phase === 'finished') return;
+    const oppUid = this.playersState.opponent.uid;
+    const forfeitData = {
+      status: 'forfeit',
+      forfeitedBy: oppUid,
+      forfeitReason: 'afk',
+      forfeitDetails: 'Rakip 30 saniye boyunca hareketsiz (AFK) kaldığı için maçı hükmen kazandınız! 🥇',
+      winnerUid: this.user.uid,
+      updatedAt: Date.now(),
+    };
+
+    try {
+      const raw = localStorage.getItem(`gm_live_${this.matchId}`);
+      const obj = raw ? JSON.parse(raw) : {};
+      Object.assign(obj, forfeitData);
+      localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
+    } catch {}
+
+    if (db) {
+      try {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const ref = doc(db, 'liveMatches', this.matchId);
+        await setDoc(ref, forfeitData, { merge: true });
+      } catch (e) {}
+    }
+
+    this._handleOpponentForfeit(forfeitData);
   }
 
   /**
@@ -257,16 +328,22 @@ export class OnlineGameEngine {
       return;
     }
 
-    // 3. Eğer ilk başta sorular senkronize edildiyse
+    // 3. Rakibin kalp atışı geldiyse son aktiflik süresini tazele
+    if (data[`heartbeat_${oppUid}`]) {
+      this._lastOpponentHeartbeatTime = data[`heartbeat_${oppUid}`];
+    }
+
+    // 4. Eğer ilk başta sorular senkronize edildiyse
     if (data.questions && data.questions.length >= this.totalRounds && (!this.questions || this.questions.length === 0)) {
       this.questions = data.questions;
     }
 
-    // 4. Rakibin bu tura ait cevabı geldiyse
+    // 5. Rakibin bu tura ait cevabı geldiyse
     const oppGuessKey = `guess_${this.currentRoundIndex}_${oppUid}`;
     const oppGuess = data[oppGuessKey];
 
     if (oppGuess && !this.playersState.opponent.currentGuess && this.phase === 'guessing') {
+      this._lastOpponentHeartbeatTime = Date.now();
       this.playersState.opponent.currentGuess = oppGuess;
       this._checkBothAnswered();
     }
@@ -848,6 +925,7 @@ export class OnlineGameEngine {
     if (this.phaseTimer) clearTimeout(this.phaseTimer);
     if (this._afkCheckTimer) clearInterval(this._afkCheckTimer);
     if (this._visibilityAfkTimer) clearTimeout(this._visibilityAfkTimer);
+    if (this._heartbeatSenderTimer) clearInterval(this._heartbeatSenderTimer);
     if (this._localPollTimer) clearInterval(this._localPollTimer);
     if (typeof this.matchUnsubscribe === 'function') {
       this.matchUnsubscribe();

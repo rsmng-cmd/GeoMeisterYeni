@@ -4,12 +4,17 @@ import { getModeById } from '../modes/ModeRegistry.js';
 import { getSeededQuestions } from '../utils/seededQuestions.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[RoomManager] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[RoomManager] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
 export class RoomManager {
@@ -69,10 +74,11 @@ export class RoomManager {
     localStorage.setItem(`geomeister_room_${roomCode}`, JSON.stringify(roomData));
 
     // Firestore Sync in background (non-blocking)
-    if (db && fsFns) {
-      fsFns.setDoc(fsFns.doc(db, 'customRooms', roomCode), {
+    const fns = await getFsFns();
+    if (db && fns) {
+      fns.setDoc(fns.doc(db, 'customRooms', roomCode), {
         ...roomData,
-        createdAt: fsFns.serverTimestamp(),
+        createdAt: fns.serverTimestamp(),
       }).catch(e => console.warn('[RoomManager] Firestore room creation warning:', e));
     }
 
@@ -95,14 +101,15 @@ export class RoomManager {
     // 1. Local Fallback dene
     let room = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
 
-    // 2. Firestore'da dene (1s timeout)
-    if (db && fsFns && !room) {
+    // 2. Firestore'da dene (1.5s timeout)
+    const fns = await getFsFns();
+    if (db && fns && !room) {
       try {
         const fetchPromise = (async () => {
-          const ref = fsFns.doc(db, 'customRooms', formattedCode);
-          return await fsFns.getDoc(ref);
+          const ref = fns.doc(db, 'customRooms', formattedCode);
+          return await fns.getDoc(ref);
         })();
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1500));
         const snap = await Promise.race([fetchPromise, timeoutPromise]);
         if (snap && snap.exists()) {
           room = snap.data();
@@ -133,13 +140,68 @@ export class RoomManager {
     this.currentRoom = room;
     localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(room));
 
-    if (db && fsFns) {
-      fsFns.updateDoc(fsFns.doc(db, 'customRooms', formattedCode), {
+    if (db && fns) {
+      fns.updateDoc(fns.doc(db, 'customRooms', formattedCode), {
         players: room.players,
       }).catch(e => console.warn('[RoomManager] Firestore join update warning:', e));
     }
 
     return room;
+  }
+
+  /**
+   * Odadan Ayrılma (Oyuncu Lobiyi Terk Ettiğinde)
+   */
+  async leaveRoom(roomCode, user) {
+    if (!roomCode) return;
+    const formattedCode = roomCode.trim().toUpperCase();
+    const userUid = user?.uid;
+
+    this.stopListening();
+    this.currentRoom = null;
+
+    try {
+      const stored = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
+      if (stored && Array.isArray(stored.players)) {
+        stored.players = stored.players.filter(p => p.uid !== userUid);
+        if (stored.players.length === 0) {
+          localStorage.removeItem(`geomeister_room_${formattedCode}`);
+        } else {
+          if (stored.hostUid === userUid && stored.players[0]) {
+            stored.hostUid = stored.players[0].uid;
+            stored.players[0].isHost = true;
+          }
+          localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(stored));
+        }
+      }
+    } catch {}
+
+    const fns = await getFsFns();
+    if (db && fns) {
+      try {
+        const ref = fns.doc(db, 'customRooms', formattedCode);
+        const snap = await fns.getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          const updatedPlayers = (data.players || []).filter(p => p.uid !== userUid);
+          if (updatedPlayers.length === 0) {
+            await fns.deleteDoc(ref);
+          } else {
+            let updatedHostUid = data.hostUid;
+            if (data.hostUid === userUid && updatedPlayers[0]) {
+              updatedHostUid = updatedPlayers[0].uid;
+              updatedPlayers[0].isHost = true;
+            }
+            await fns.updateDoc(ref, {
+              players: updatedPlayers,
+              hostUid: updatedHostUid,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[RoomManager] Leave room error:', e);
+      }
+    }
   }
 
   /**
@@ -158,12 +220,13 @@ export class RoomManager {
     this.currentRoom.status = 'playing';
     localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(this.currentRoom));
 
-    if (db && fsFns) {
-      fsFns.setDoc(fsFns.doc(db, 'customRooms', formattedCode), {
+    const fns = await getFsFns();
+    if (db && fns) {
+      fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
         ...this.currentRoom,
         status: 'playing',
         questions: this.currentRoom.questions,
-        startedAt: fsFns.serverTimestamp(),
+        startedAt: fns.serverTimestamp(),
       }, { merge: true }).catch(e => console.warn('[RoomManager] Firestore start game warning:', e));
     }
   }
@@ -171,7 +234,7 @@ export class RoomManager {
   /**
    * Odadaki Değişiklikleri Dinler
    */
-  listenToRoom(roomCode, onChange) {
+  async listenToRoom(roomCode, onChange) {
     const formattedCode = roomCode.trim().toUpperCase();
 
     // Anlık mevcut odayı hemen bildir
@@ -180,11 +243,12 @@ export class RoomManager {
     }
 
     let unsubFirestore = null;
+    const fns = await getFsFns();
 
-    if (db && fsFns) {
+    if (db && fns) {
       try {
-        const ref = fsFns.doc(db, 'customRooms', formattedCode);
-        unsubFirestore = fsFns.onSnapshot(ref, (docSnap) => {
+        const ref = fns.doc(db, 'customRooms', formattedCode);
+        unsubFirestore = fns.onSnapshot(ref, (docSnap) => {
           if (docSnap.exists()) {
             this.currentRoom = docSnap.data();
             onChange(this.currentRoom);

@@ -23,6 +23,7 @@ export class MatchmakingEngine {
     this.activeSearchId = null;
     this.onStatusChangeCallback = null;
     this.queueDocRef = null;
+    this.queueUnsubscribe = null;
     this.currentUser = null;
 
     window.addEventListener('beforeunload', () => this.cancelSearch());
@@ -45,22 +46,45 @@ export class MatchmakingEngine {
     let secondsElapsed = 0;
     this._notifyStatus(`Eşleşme aranıyor... (±20 ELO) [0s]`, secondsElapsed);
 
-    // Kendi sunucu / Firestore kuyruk kaydını oluştur (non-blocking)
+    // Kendi sunucu / Firestore kuyruk kaydını oluştur ve dinlemeye başla
     this.currentUser = user;
     const fns = await getFsFns();
     if (user && !user.isGuest && db && fns) {
       try {
         this.queueDocRef = fns.doc(db, 'matchmakingQueue', user.uid);
-        fns.setDoc(this.queueDocRef, {
+        await fns.setDoc(this.queueDocRef, {
           uid: user.uid,
           displayName: user.displayName || 'Oyuncu',
           modeId,
           elo: stats.elo,
           joinedAt: Date.now(),
           status: 'waiting',
-        }).catch(e => console.warn('[Matchmaking] Queue doc set warning:', e));
+        });
+
+        // Kendi kuyruk belgemizi dinle: Başka bir oyuncu bizi eşleştirdiğinde anında tetiklenir!
+        this.queueUnsubscribe = fns.onSnapshot(this.queueDocRef, (docSnap) => {
+          if (!docSnap.exists()) return;
+          const data = docSnap.data();
+          if (data.status === 'matched' && data.matchId && data.opponent) {
+            console.log('[Matchmaking] Eşleşme bulundu (remote eşleşme):', data);
+            this.cancelSearch();
+            onMatchFound({
+              matchId: data.matchId,
+              isBot: false,
+              modeId,
+              questions: data.questions || [],
+              opponent: data.opponent,
+              player: {
+                uid: user.uid,
+                displayName: user.displayName || 'Oyuncu',
+                elo: stats.elo,
+                rank: stats.rank,
+              },
+            });
+          }
+        }, (err) => console.warn('[Matchmaking] Queue listener warning:', err));
       } catch (e) {
-        console.warn('[Matchmaking] Queue doc ref warning:', e);
+        console.warn('[Matchmaking] Queue doc init error:', e);
       }
     }
 
@@ -79,7 +103,7 @@ export class MatchmakingEngine {
           const match = await this._findRealOpponent(user, modeId, stats.elo, 20);
           if (match && this.activeSearchId === searchId) {
             this._cleanupQueueDoc();
-            this._handleMatchSuccess(searchId, match, onMatchFound);
+            this._handleMatchSuccess(searchId, match, onMatchFound, modeId, stats, user);
             return;
           }
         } catch (e) {
@@ -93,7 +117,7 @@ export class MatchmakingEngine {
           const match = await this._findRealOpponent(user, modeId, stats.elo, Infinity);
           if (match && this.activeSearchId === searchId) {
             this._cleanupQueueDoc();
-            this._handleMatchSuccess(searchId, match, onMatchFound);
+            this._handleMatchSuccess(searchId, match, onMatchFound, modeId, stats, user);
             return;
           }
         } catch (e) {
@@ -182,6 +206,10 @@ export class MatchmakingEngine {
       clearInterval(this.queueTimer);
       this.queueTimer = null;
     }
+    if (typeof this.queueUnsubscribe === 'function') {
+      this.queueUnsubscribe();
+      this.queueUnsubscribe = null;
+    }
     this.activeSearchId = null;
     this._cleanupQueueDoc();
   }
@@ -212,7 +240,7 @@ export class MatchmakingEngine {
         fns.where('status', '==', 'waiting')
       );
 
-      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1200));
       const snap = await Promise.race([fns.getDocs(q), timeoutPromise]);
 
       if (!snap || !snap.docs) return null;
@@ -221,26 +249,63 @@ export class MatchmakingEngine {
       for (const docSnap of snap.docs) {
         const data = docSnap.data();
         if (data.uid !== user.uid) {
-          // Kuyruk zaman aşımı kontrolü (15 saniyeden eski geçmiş kayıtları ele ve Firestore'dan temizle)
+          // Kuyruk zaman aşımı kontrolü (18 saniyeden eski kayıtları temizle)
           const joinedTime = typeof data.joinedAt === 'number'
             ? data.joinedAt
             : (data.joinedAt?.toMillis ? data.joinedAt.toMillis() : new Date(data.joinedAt || 0).getTime());
 
-          if (!joinedTime || now - joinedTime > 15000) {
+          if (!joinedTime || now - joinedTime > 18000) {
             fns.deleteDoc(docSnap.ref).catch(() => {});
             continue;
           }
 
           const eloDiff = Math.abs((data.elo || 50) - playerElo);
           if (eloDiff <= maxEloDiff) {
-            // Eşleşme bulundu, rakibin kuyruk kaydını sil
-            fns.deleteDoc(docSnap.ref).catch(() => {});
+            // Eşleşme bulundu: Ortak maç ve tohum oluştur
+            const matchId = `live_match_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const questions = getSeededQuestions(modeId, matchId, 10);
+
+            // 1) Rakibin kuyruk belgesini 'matched' olarak güncelle (Rakibin ekranı da maça başlasın)
+            await fns.setDoc(docSnap.ref, {
+              status: 'matched',
+              matchId,
+              questions,
+              opponent: {
+                uid: user.uid,
+                displayName: user.displayName || 'Oyuncu',
+                elo: playerElo,
+                rank: getRankByElo(playerElo),
+                isBot: false,
+              },
+              matchedAt: Date.now(),
+            }, { merge: true });
+
+            // 2) Canlı maç belgesini başlat
+            try {
+              const liveRef = fns.doc(db, 'liveMatches', matchId);
+              await fns.setDoc(liveRef, {
+                matchId,
+                modeId,
+                questions,
+                status: 'playing',
+                players: {
+                  [user.uid]: { displayName: user.displayName || 'Oyuncu', ready: true },
+                  [data.uid]: { displayName: data.displayName || 'Rakip', ready: true },
+                },
+                createdAt: fns.serverTimestamp(),
+              });
+            } catch (err) {
+              console.warn('[Matchmaking] Live match init error:', err);
+            }
+
             return {
               uid: data.uid,
               displayName: data.displayName || 'Rakip',
               elo: data.elo || 50,
               rank: getRankByElo(data.elo || 50),
               isBot: false,
+              matchId,
+              questions,
             };
           }
         }
@@ -251,13 +316,21 @@ export class MatchmakingEngine {
     return null;
   }
 
-  _handleMatchSuccess(searchId, opponent, onMatchFound) {
+  _handleMatchSuccess(searchId, opponent, onMatchFound, modeId, stats, user) {
     if (this.activeSearchId !== searchId) return;
     this.cancelSearch();
     onMatchFound({
-      matchId: `live_match_${Date.now()}`,
-      isBot: opponent.isBot,
+      matchId: opponent.matchId || `live_match_${Date.now()}`,
+      isBot: false,
+      modeId,
+      questions: opponent.questions || [],
       opponent,
+      player: {
+        uid: user?.uid || 'guest',
+        displayName: user?.displayName || 'Oyuncu',
+        elo: stats?.elo || 50,
+        rank: stats?.rank,
+      },
     });
   }
 
