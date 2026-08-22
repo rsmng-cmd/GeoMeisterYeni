@@ -267,17 +267,6 @@
   margin-left: 4px;
 }
 
-[data-theme="light"] .game-top-bar {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(0, 0, 0, 0.12) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
-}
-
-[data-theme="light"] .game-question {
-  background: rgba(241, 245, 249, 0.95) !important;
-  border-color: rgba(79, 70, 229, 0.3) !important;
-}
-
 .game-progress {
   width: 100%;
   max-width: 320px;

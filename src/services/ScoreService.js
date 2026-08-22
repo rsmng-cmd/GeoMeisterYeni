@@ -1,18 +1,17 @@
-/**
- * ScoreService.js — Skor ve Profil Servisi
- * Kayıtlı kullanıcıların skorları Firebase Firestore'a ve yerel yedek saklamaya yazılır.
- * Misafir kullanıcı verileri kesinlikle kaydedilmez ve Liderlik Tablosunda yer almaz.
- */
-
 import { db, firebaseReady } from '../config/firebase.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[ScoreService] Firestore modülü yüklenemedi:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[ScoreService] Firestore modülü yüklenemedi:', e.message);
+    }
   }
+  return null;
 }
 
 /**
@@ -35,9 +34,10 @@ export class ScoreService {
     this._cleanLocalGuestScores();
   }
 
-  _canUseFirestore(user = null) {
+  async _canUseFirestore(user = null) {
     if (user && isGuestUser(user)) return false;
-    return !!(firebaseReady && db && fsFns);
+    const fns = await getFsFns();
+    return !!(firebaseReady && db && fns);
   }
 
   // ─── Skor Kaydetme ──────────────────────────────────────────
@@ -77,10 +77,11 @@ export class ScoreService {
     this._saveToLocal(scoreEntry);
 
     // Firebase Firestore'a kaydet (Herkesin Liderlik Tablosunda görebilmesi için)
-    if (this._canUseFirestore(user)) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const fsEntry = { ...scoreEntry, playedAt: fsFns.serverTimestamp() };
-        await fsFns.addDoc(fsFns.collection(db, 'scores'), fsEntry);
+        const fsEntry = { ...scoreEntry, playedAt: fns.serverTimestamp() };
+        await fns.addDoc(fns.collection(db, 'scores'), fsEntry);
         await this._updateUserProfileFirestore(user, totalScore);
         await this._updateModeStatsFirestore(user, mode.id, totalScore);
         console.log('[ScoreService] Skor başarıyla Firebase Firestore\'a kaydedildi.');
@@ -93,25 +94,26 @@ export class ScoreService {
   // ─── Liderlik Tablosu ───────────────────────────────────────
 
   async getLeaderboard(modeId = 'world', limitCount = 50) {
-    if (this._canUseFirestore()) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         const rawScores = await Promise.race([
           (async () => {
             try {
               let q;
               if (modeId === 'all') {
-                q = fsFns.query(
-                  fsFns.collection(db, 'scores'),
-                  fsFns.limit(200)
+                q = fns.query(
+                  fns.collection(db, 'scores'),
+                  fns.limit(300)
                 );
               } else {
-                q = fsFns.query(
-                  fsFns.collection(db, 'scores'),
-                  fsFns.where('modeId', '==', modeId),
-                  fsFns.limit(200)
+                q = fns.query(
+                  fns.collection(db, 'scores'),
+                  fns.where('modeId', '==', modeId),
+                  fns.limit(300)
                 );
               }
-              const snapshot = await fsFns.getDocs(q);
+              const snapshot = await fns.getDocs(q);
               return snapshot.docs.map((d) => ({
                 id: d.id,
                 ...d.data(),
@@ -122,7 +124,7 @@ export class ScoreService {
               return null;
             }
           })(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+          new Promise((resolve) => setTimeout(() => resolve(null), 4500))
         ]);
 
         if (rawScores && rawScores.length > 0) {
@@ -543,31 +545,29 @@ export class ScoreService {
 
   // ─── Private: Firestore ─────────────────────────────────────
 
-  _canUseFirestore(user) {
-    return firebaseReady && db && fsFns && !isGuestUser(user);
-  }
-
   async _updateUserProfileFirestore(user, score) {
     if (isGuestUser(user)) return;
-    const ref = fsFns.doc(db, 'users', user.uid);
+    const fns = await getFsFns();
+    if (!db || !fns) return;
+    const ref = fns.doc(db, 'users', user.uid);
     try {
-      const snap = await fsFns.getDoc(ref);
+      const snap = await fns.getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
-        await fsFns.updateDoc(ref, {
-          totalScore: fsFns.increment(score),
-          gamesPlayed: fsFns.increment(1),
+        await fns.updateDoc(ref, {
+          totalScore: fns.increment(score),
+          gamesPlayed: fns.increment(1),
           bestScore: Math.max(data.bestScore || 0, score),
         });
       } else {
-        await fsFns.setDoc(ref, {
+        await fns.setDoc(ref, {
           uid: user.uid,
           displayName: user.displayName || 'Anonim',
           email: user.email || null,
           totalScore: score,
           gamesPlayed: 1,
           bestScore: score,
-          createdAt: fsFns.serverTimestamp(),
+          createdAt: fns.serverTimestamp(),
         });
       }
     } catch (e) {
@@ -577,24 +577,26 @@ export class ScoreService {
 
   async _updateModeStatsFirestore(user, modeId, score) {
     if (isGuestUser(user)) return;
+    const fns = await getFsFns();
+    if (!db || !fns) return;
     const docId = `${user.uid}_${modeId}`;
-    const ref = fsFns.doc(db, 'userModeStats', docId);
+    const ref = fns.doc(db, 'userModeStats', docId);
     try {
-      const snap = await fsFns.getDoc(ref);
+      const snap = await fns.getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
-        await fsFns.updateDoc(ref, {
-          gamesPlayed: fsFns.increment(1),
+        await fns.updateDoc(ref, {
+          gamesPlayed: fns.increment(1),
           bestScore: Math.max(data.bestScore || 0, score),
-          lastPlayed: fsFns.serverTimestamp(),
+          lastPlayed: fns.serverTimestamp(),
         });
       } else {
-        await fsFns.setDoc(ref, {
+        await fns.setDoc(ref, {
           uid: user.uid,
           modeId,
           gamesPlayed: 1,
           bestScore: score,
-          lastPlayed: fsFns.serverTimestamp(),
+          lastPlayed: fns.serverTimestamp(),
         });
       }
     } catch (e) {

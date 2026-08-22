@@ -73,6 +73,11 @@ export class OnlineGameEngine {
     this.matchUnsubscribe = null;
     this._localPollTimer = null;
 
+    // AFK Takip Değişkenleri (10s Sekme Dışı, 30s Hareketsiz)
+    this._lastUserActionTime = Date.now();
+    this._afkCheckTimer = null;
+    this._visibilityAfkTimer = null;
+
     // Dinamik Bot Zorluğu Gücü
     this.currentBotPower = matchData.opponent?.targetAvgScore || 350;
 
@@ -86,10 +91,14 @@ export class OnlineGameEngine {
    */
   async start(mapContainerId) {
     this.mapEngine = new MapEngine(mapContainerId, this.modeConfig, (lat, lng) => {
+      this._recordUserAction();
       this._onPlayerGuess({ lat, lng });
     }).init();
 
-    this.mapEngine.onMapClick((latlng) => this._onPlayerGuess(latlng));
+    this.mapEngine.onMapClick((latlng) => {
+      this._recordUserAction();
+      this._onPlayerGuess(latlng);
+    });
 
     // 10 Eşzamanlı Soru — Ortak tohum üzerinden %100 senkronize garantisi
     const seedKey = this.matchData?.roomCode 
@@ -103,6 +112,9 @@ export class OnlineGameEngine {
       this.questions = getSeededQuestions(dataSource, seedKey, this.totalRounds);
     }
 
+    // AFK Kontrolünü Başlat
+    this._startAfkMonitoring();
+
     // Canlı İki İnsan Maçı için Firestore Senkronizasyonunu Kur
     if (!this.playersState.opponent.isBot) {
       await this._initLiveMatchSync();
@@ -110,6 +122,54 @@ export class OnlineGameEngine {
 
     this.currentRoundIndex = 0;
     this._startRound();
+  }
+
+  _recordUserAction() {
+    this._lastUserActionTime = Date.now();
+  }
+
+  _startAfkMonitoring() {
+    this._recordUserAction();
+
+    // Kullanıcı etkileşimlerini dinle (hareket, tıklama, tuş)
+    this._userActionListener = () => this._recordUserAction();
+    window.addEventListener('pointermove', this._userActionListener, { passive: true });
+    window.addEventListener('pointerdown', this._userActionListener, { passive: true });
+    window.addEventListener('keydown', this._userActionListener, { passive: true });
+    window.addEventListener('touchstart', this._userActionListener, { passive: true });
+    window.addEventListener('wheel', this._userActionListener, { passive: true });
+
+    // 1) 30 Saniye Boyunca Hiçbir Hareket Yapılmadıysa AFK Hükmen Mağlubiyet
+    if (this._afkCheckTimer) clearInterval(this._afkCheckTimer);
+    this._afkCheckTimer = setInterval(() => {
+      if (this.phase !== 'finished' && this.phase !== 'idle') {
+        const idleDuration = Date.now() - this._lastUserActionTime;
+        if (idleDuration >= 30_000) {
+          console.warn('[OnlineGameEngine] ⏱️ 30 saniye hareketsizlik tespit edildi (AFK Forfeit).');
+          this._triggerAfkForfeit('30 saniye boyunca herhangi bir hareket (tıklama, kaydırma, zoom) yapmadığınız (AFK) için maç kaybedildi.');
+        }
+      }
+    }, 1000);
+
+    // 2) 10 Saniye Boyunca Ekran Kapatıldıysa / Sekmeden Çıkıldıysa AFK Hükmen Mağlubiyet
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'hidden' && this.phase !== 'finished' && this.phase !== 'idle') {
+        if (this._visibilityAfkTimer) clearTimeout(this._visibilityAfkTimer);
+        this._visibilityAfkTimer = setTimeout(() => {
+          if (document.visibilityState === 'hidden' && this.phase !== 'finished' && this.phase !== 'idle') {
+            console.warn('[OnlineGameEngine] ⏱️ 10 saniye sekme dışı kalındı (AFK Forfeit).');
+            this._triggerAfkForfeit('10 saniye boyunca sekme dışında kaldığınız veya ekran kapalı olduğu için maç kaybedildi.');
+          }
+        }, 10_000);
+      } else if (document.visibilityState === 'visible') {
+        if (this._visibilityAfkTimer) {
+          clearTimeout(this._visibilityAfkTimer);
+          this._visibilityAfkTimer = null;
+        }
+        this._recordUserAction();
+      }
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   /**
@@ -488,19 +548,81 @@ export class OnlineGameEngine {
   }
 
   /**
-   * Rakip Oyunu Terk Ettiğinde Otomatik Hükmen Galibiyet Tetikler
+   * AFK Kalındığında veya 10s Sekme Dışına Çıkıldığında Hükmen Mağlubiyet Tetikle
    */
-  async _handleOpponentForfeit() {
+  async _triggerAfkForfeit(reason = 'AFK') {
     if (this.phase === 'finished') return;
     this.phase = 'finished';
 
-    if (this.roundTimer) clearInterval(this.roundTimer);
-    if (this.phaseTimer) clearTimeout(this.phaseTimer);
-    window.removeEventListener('beforeunload', this._unloadHandler);
+    const forfeitData = {
+      status: 'forfeit',
+      forfeitedBy: this.user?.uid || 'guest',
+      forfeitReason: 'afk',
+      forfeitDetails: reason,
+      winnerUid: this.playersState.opponent.uid,
+      updatedAt: Date.now(),
+    };
+
+    try {
+      const raw = localStorage.getItem(`gm_live_${this.matchId}`);
+      const obj = raw ? JSON.parse(raw) : {};
+      Object.assign(obj, forfeitData);
+      localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
+    } catch {}
+
+    if (db) {
+      try {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const ref = doc(db, 'liveMatches', this.matchId);
+        await setDoc(ref, forfeitData, { merge: true });
+      } catch (e) {}
+    }
+
+    // Kendisine -10 ELO uygula
+    let eloResult = {
+      oldElo: 1000,
+      newElo: 990,
+      eloDelta: -10,
+      isRanked: true,
+      rank: { name: 'Oyuncu', color: '#38bdf8', icon: '🏆' },
+    };
+
+    if (!this.isFriendMatch && this.user && !this.user.isGuest) {
+      try {
+        eloResult = await onlineService.updateMatchResult(this.user, this.modeConfig.id, false);
+      } catch {}
+    }
+
+    this.destroy();
+
+    // Hükmen mağlubiyet modalını göster
+    if (typeof this.onGameOver === 'function') {
+      this.onGameOver({
+        isWin: false,
+        isForfeit: true,
+        forfeitReason: 'afk',
+        forfeitDetails: reason,
+        me: this.playersState.me || { score: this.playersState.me?.score || 0, displayName: 'Siz' },
+        opponent: this.playersState.opponent || { score: this.playersState.opponent?.score || 0, displayName: 'Rakip' },
+        eloResult,
+        mode: this.modeConfig,
+        rounds: this.playerRounds || [],
+      });
+    }
+  }
+
+  /**
+   * Rakip Oyuncu Maçı Terk Ettiğinde veya AFK Kaldığında Çağrılır (Hükmen Galibiyet)
+   */
+  async _handleOpponentForfeit(forfeitData = null) {
+    if (this.phase === 'finished') return;
+    this.phase = 'finished';
+
+    this.destroy();
 
     soundService.playWin();
 
-    // Hükmen Galibiyet ELO Güncellemesi (+10 ELO)
+    // Kazanan oyuncuya +10 ELO
     let eloResult = {
       oldElo: 1000,
       newElo: 1010,
@@ -510,18 +632,9 @@ export class OnlineGameEngine {
     };
 
     try {
-      const modeId = this.modeConfig?.id || 'world';
-      const updatePromise = this.isFriendMatch
-        ? onlineService.getPlayerOnlineStats(this.user, modeId).then(stats => ({
-            oldElo: stats.elo, newElo: stats.elo, eloDelta: 0, rank: stats.rank, isRanked: stats.isRanked
-          }))
-        : onlineService.updateMatchResult(this.user, modeId, true);
-
-      const res = await Promise.race([
-        updatePromise,
-        new Promise((resolve) => setTimeout(() => resolve(null), 1200))
-      ]);
-      if (res) eloResult = res;
+      if (!this.isFriendMatch && this.user && !this.user.isGuest) {
+        eloResult = await onlineService.updateMatchResult(this.user, this.modeConfig.id, true);
+      }
     } catch (err) {
       console.warn('[OnlineGameEngine] Forfeit ELO update warning:', err);
     }
@@ -530,10 +643,15 @@ export class OnlineGameEngine {
       this.onGameOver({
         isWin: true,
         isForfeit: true,
+        forfeitReason: 'opponent_forfeit',
+        forfeitDetails: forfeitData?.forfeitReason === 'afk' 
+          ? 'Rakip 10s sekme dışı veya 30s hareketsiz (AFK) kaldığı için maçı hükmen kazandınız! 🥇' 
+          : 'Rakip oyundan ayrıldı, maçı hükmen kazandınız! 🥇',
         me: this.playersState.me || { score: this.playersState.me.score, displayName: 'Siz' },
         opponent: this.playersState.opponent || { score: this.playersState.opponent.score, displayName: 'Rakip' },
         eloResult,
         mode: this.modeConfig,
+        rounds: this.playerRounds || [],
       });
     }
   }
@@ -560,10 +678,11 @@ export class OnlineGameEngine {
       localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
     } catch {}
 
-    if (db && fsFns) {
+    if (db) {
       try {
-        const ref = fsFns.doc(db, 'liveMatches', this.matchId);
-        await fsFns.setDoc(ref, forfeitData, { merge: true });
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const ref = doc(db, 'liveMatches', this.matchId);
+        await setDoc(ref, forfeitData, { merge: true });
       } catch (e) {}
     }
 
@@ -643,10 +762,22 @@ export class OnlineGameEngine {
   destroy() {
     if (this.roundTimer) clearInterval(this.roundTimer);
     if (this.phaseTimer) clearTimeout(this.phaseTimer);
+    if (this._afkCheckTimer) clearInterval(this._afkCheckTimer);
+    if (this._visibilityAfkTimer) clearTimeout(this._visibilityAfkTimer);
     if (this._localPollTimer) clearInterval(this._localPollTimer);
     if (typeof this.matchUnsubscribe === 'function') {
       this.matchUnsubscribe();
       this.matchUnsubscribe = null;
+    }
+    if (this._userActionListener) {
+      window.removeEventListener('pointermove', this._userActionListener);
+      window.removeEventListener('pointerdown', this._userActionListener);
+      window.removeEventListener('keydown', this._userActionListener);
+      window.removeEventListener('touchstart', this._userActionListener);
+      window.removeEventListener('wheel', this._userActionListener);
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
     }
     window.removeEventListener('beforeunload', this._unloadHandler);
     if (this.mapEngine) this.mapEngine.destroy();

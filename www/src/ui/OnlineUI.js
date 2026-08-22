@@ -456,13 +456,18 @@ export class OnlineUI {
 
     const eloText = rankInfo.eloDelta ? (rankInfo.eloDelta > 0 ? `+${rankInfo.eloDelta} ELO` : `${rankInfo.eloDelta} ELO`) : (isWin ? '+10 ELO' : '-10 ELO');
 
-    const headerTitle = isForfeit
-      ? (isWin ? '🏆 TEBRİKLER KAZANDINIZ!' : '🚪 MAÇTAN AYRILDINIZ')
-      : (isWin ? '🏆 KAZANDINIZ!' : '💔 KAYBETTİNİZ');
+    let headerTitle = isWin ? '🏆 KAZANDINIZ!' : '💔 KAYBETTİNİZ';
+    let headerSubtitle = isWin ? 'Tebrikler, rakibinizi mağlup ettiniz!' : 'Bu sefer olmadı, tekrar deneyin!';
 
-    const headerSubtitle = isForfeit
-      ? (isWin ? 'Rakip oyundan ayrıldı, maçı hükmen kazandınız! 🥇' : 'Oyunu terk ettiğiniz için hükmen mağlup sayıldınız.')
-      : (isWin ? 'Tebrikler, rakibinizi mağlup ettiniz!' : 'Bu sefer olmadı, tekrar deneyin!');
+    if (isForfeit) {
+      if (isWin) {
+        headerTitle = '🏆 HÜKMEN KAZANDINIZ!';
+        headerSubtitle = result.forfeitDetails || 'Rakip AFK kaldığı veya oyundan ayrıldığı için maçı hükmen kazandınız! 🥇';
+      } else {
+        headerTitle = '⏱️ HÜKMEN MAĞLUP OLDUNUZ';
+        headerSubtitle = result.forfeitDetails || '10 saniye sekme dışı kaldığınız veya 30 saniye hareketsiz (AFK) kaldığınız için maç kaybedildi.';
+      }
+    }
 
     const modalHTML = `
       <div id="online-gameover-modal" class="modal-backdrop" style="z-index: 999999 !important; display: flex !important; visibility: visible !important; opacity: 1 !important;">
