@@ -497,14 +497,26 @@ class App {
           },
         });
 
-        // Online skorunu kaydet
+        // Online skorunu ilgili moda (Örn: Avrupa, Türkiye, Dünya, Afrika) kaydet
         try {
+          const targetMode = result.mode || mode || { id: 'world', name: 'Dünya' };
+          const modeId = targetMode.id || 'world';
+          const modeName = targetMode.name || 'Dünya';
+
           this.scoreService.saveScore(this.currentUser, {
-            totalScore: result.me.score,
-            rounds: [],
-            mode: { id: 'online', name: 'Online 1v1' },
+            totalScore: result.me?.score || 0,
+            rounds: (result.rounds && result.rounds.length > 0) ? result.rounds : (result.me?.rounds || []),
+            mode: { id: modeId, name: modeName },
             maxPossible: 10000,
           });
+
+          // Profil cache güncelle
+          this.scoreService.getUserProfile(this.currentUser).then((updatedProf) => {
+            if (updatedProf) {
+              this.userProfile = updatedProf;
+              this._cacheProfile(this.currentUser.uid, updatedProf);
+            }
+          }).catch(() => {});
         } catch (err) {
           console.warn('[App] Online score save warning:', err);
         }

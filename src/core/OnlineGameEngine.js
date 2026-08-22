@@ -31,6 +31,7 @@ export class OnlineGameEngine {
     this.questions = (matchData.questions && matchData.questions.length >= 10) ? matchData.questions : [];
     this.currentRoundIndex = 0;
     this.totalRounds = 10;
+    this.playerRounds = [];
 
     this.is2v2 = !!matchData.is2v2;
     this.teamA = matchData.teamA || [];
@@ -396,6 +397,15 @@ export class OnlineGameEngine {
       this.playersState.me.score += meScore;
       this.playersState.me.totalKm += (this.playersState.me.currentGuess?.distanceKm || 0);
 
+      this.playerRounds.push({
+        city: currentQuestion.name,
+        country: currentQuestion.country,
+        lat: currentQuestion.lat,
+        lng: currentQuestion.lng,
+        score: meScore,
+        distance: Math.round(this.playersState.me.currentGuess?.distanceKm || 0),
+      });
+
       // Online tahmin verisini ısı haritasına kaydet
       if (this.playersState.me.currentGuess) {
         import('../services/ScoreService.js').then(({ ScoreService }) => {
@@ -616,6 +626,7 @@ export class OnlineGameEngine {
         opponent: this.playersState.opponent || { score: oppScore, displayName: 'Rakip' },
         eloResult,
         mode: this.modeConfig,
+        rounds: this.playerRounds || [],
       });
     }
   }
