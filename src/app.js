@@ -271,18 +271,59 @@ class App {
     this.leaderboardUI.show(this.currentUser, this.friendService);
   }
 
+  _isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  _showIOSFullscreenGuide() {
+    let modal = document.getElementById('ios-fullscreen-guide-modal');
+    if (modal) modal.remove();
+
+    const modalHTML = `
+      <div id="ios-fullscreen-guide-modal" class="modal-backdrop" style="z-index: 99999999 !important; display: flex; align-items: center; justify-content: center;">
+        <div class="online-modal-card" style="max-width: 380px; padding: 24px; text-align: center; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+          <div style="font-size: 40px; margin-bottom: 8px;">🍎</div>
+          <h3 style="font-size: 18px; font-weight: 800; color: #f8fafc; margin-bottom: 12px;">iPhone Tam Ekran Kılavuzu</h3>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; text-align: left; margin-bottom: 20px; background: rgba(255,255,255,0.04); padding: 12px 14px; border-radius: 12px;">
+            Apple (iOS Safari) tarayıcı içinde butonla tam ekrana izin vermemektedir. Tam ekran ve çubuksuz oynamak için:<br/><br/>
+            <strong style="color: #38bdf8;">1.</strong> Safari'nin altındaki <strong style="color: #f8fafc;">Paylaş (📤)</strong> butonuna dokunun.<br/>
+            <strong style="color: #38bdf8;">2.</strong> <strong style="color: #f8fafc;">'Ana Ekrana Ekle' (➕)</strong> seçeneğini seçin.<br/><br/>
+            🎉 Ana ekrandan açtığınızda oyun tıpkı bir uygulama gibi tam ekran açılacaktır!
+          </p>
+          <button id="btn-close-ios-guide" class="btn btn-primary btn-full" style="padding: 12px; font-weight: 700;">Anladım 👍</button>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('btn-close-ios-guide')?.addEventListener('click', () => {
+      document.getElementById('ios-fullscreen-guide-modal')?.remove();
+    });
+  }
+
   _toggleFullscreen() {
     const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+    const docEl = document.documentElement;
+    const canFs = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen);
+
+    if (!canFs && this._isIOS()) {
+      this._showIOSFullscreenGuide();
+      return;
+    }
+
     if (!isFs) {
-      const docEl = document.documentElement;
       if (docEl.requestFullscreen) {
-        docEl.requestFullscreen().catch(() => {});
+        docEl.requestFullscreen().catch(() => {
+          if (this._isIOS()) this._showIOSFullscreenGuide();
+        });
       } else if (docEl.webkitRequestFullscreen) {
         docEl.webkitRequestFullscreen();
       } else if (docEl.mozRequestFullScreen) {
         docEl.mozRequestFullScreen();
       } else if (docEl.msRequestFullscreen) {
         docEl.msRequestFullscreen();
+      } else if (this._isIOS()) {
+        this._showIOSFullscreenGuide();
       }
     } else {
       if (document.exitFullscreen) {

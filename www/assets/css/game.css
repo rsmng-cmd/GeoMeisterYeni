@@ -71,21 +71,21 @@
 
 /* Standart / Aydınlık Mod: Koyu gri karalar ve net ayrıştırılmış sular */
 [data-theme="light"] .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) saturate(1.1) brightness(4.0) contrast(1.1) !important;
+  filter: invert(1) hue-rotate(180deg) saturate(1.2) brightness(4.2) contrast(1.1) !important;
 }
 
 [data-theme="light"] .leaflet-container {
   background: #2d3748 !important;
 }
 
-/* Koyu Mod: Karalar koyu antrasit, sular berrak deniz mavisi (Neon cırtlaklığı önlenmiş dengeli renkler) */
+/* Koyu Mod: Karalar koyu belirgin antrasit, sular açık ve berrak canlı deniz mavisi */
 [data-theme="dark"] .leaflet-tile-pane,
 :root:not([data-theme="light"]) .leaflet-tile-pane {
-  filter: invert(92%) hue-rotate(180deg) brightness(1.05) contrast(1.2) saturate(1.25) !important;
+  filter: invert(92%) hue-rotate(185deg) brightness(1.25) contrast(1.25) saturate(1.7) !important;
 }
 
 :root:not([data-theme="light"]) .leaflet-container {
-  background: #0f2744 !important;
+  background: #1a3c66 !important;
 }
 .leaflet-control-zoom {
   margin-top: 90px !important; /* Top bar'ın altında kalmasın */
