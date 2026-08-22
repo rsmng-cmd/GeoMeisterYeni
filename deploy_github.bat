@@ -1,6 +1,6 @@
 @echo off
 set "PATH=C:\Users\rsmng\AppData\Local\Programs\MinGit\cmd;%PATH%"
-echo GitHub'a guncel proje yukleniyor (https://github.com/rsmng-cmd/GeoMeister)...
+echo GitHub'a guncel proje yukleniyor (https://github.com/rsmng-cmd/GeoMeisterYeni)...
 git push -f -u origin main
 echo.
 echo ==============================================
