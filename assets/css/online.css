@@ -632,6 +632,7 @@
   .online-modal-card {
     padding: var(--space-md);
     max-height: 90vh;
+    max-height: 90dvh;
     overflow-y: auto;
     width: 95%;
   }
@@ -641,53 +642,112 @@
   }
 
   .btn-close-modal {
-    width: 44px;
-    height: 44px;
-    top: 10px;
-    right: 10px;
+    width: 40px;
+    height: 40px;
+    top: 8px;
+    right: 8px;
   }
 }
 
-/* ═══ Açık Mod (Light Theme) İyileştirmeleri — Online Hub ═══ */
-[data-theme="light"] .online-modal-card {
-  background: #ffffff !important;
-  border-color: rgba(79, 70, 229, 0.3) !important;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
-}
+/* ═══ Yatay Ekran (Mobile Landscape & Dar Yükseklik) Optimizasyonu — Online Hub ═══ */
+@media (max-height: 600px), (orientation: landscape) and (max-height: 650px) {
+  .modal-backdrop {
+    align-items: flex-start;
+    padding: 6px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 
-[data-theme="light"] .online-title,
-[data-theme="light"] .action-title,
-[data-theme="light"] .rank-name,
-[data-theme="light"] .search-title,
-[data-theme="light"] .lobby-header h3,
-[data-theme="light"] .lobby-player-item {
-  color: #0f172a !important;
-}
+  .online-modal-card {
+    max-width: 620px;
+    padding: 10px 14px;
+    gap: 6px;
+    max-height: none;
+    margin: auto;
+  }
 
-[data-theme="light"] .online-subtitle,
-[data-theme="light"] .action-desc,
-[data-theme="light"] .rank-elo-details {
-  color: #334155 !important;
-}
+  .online-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
 
-[data-theme="light"] .online-action-card,
-[data-theme="light"] .user-rank-card,
-[data-theme="light"] .lobby-player-item {
-  background: #f8fafc !important;
-  border-color: #cbd5e1 !important;
-}
+  .online-title {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+  }
 
-[data-theme="light"] .online-mode-selector {
-  background: #e2e8f0 !important;
-}
+  .online-subtitle {
+    display: none;
+  }
 
-[data-theme="light"] .online-mode-tab {
-  color: #475569 !important;
-}
+  .online-mode-selector {
+    padding: 2px;
+    gap: 2px;
+  }
 
-[data-theme="light"] .online-mode-tab.active {
-  background: #4f46e5 !important;
-  color: #ffffff !important;
+  .online-mode-tab {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+  }
+
+  .user-rank-card {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .rank-badge-icon {
+    font-size: 1.5rem;
+  }
+
+  .rank-name {
+    font-size: 0.85rem;
+  }
+
+  .rank-elo-details {
+    font-size: 0.75rem;
+  }
+
+  .online-actions-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+  }
+
+  .online-action-card {
+    padding: 8px 6px;
+    gap: 3px;
+  }
+
+  .action-icon {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+  }
+
+  .action-title {
+    font-size: 0.8rem;
+  }
+
+  .action-desc {
+    display: none;
+  }
+
+  .btn-close-modal {
+    top: 6px;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .lobby-card {
+    padding: 10px;
+  }
+
+  .room-code-display {
+    font-size: 1.3rem;
+    padding: 4px 10px;
+  }
 }
 
 

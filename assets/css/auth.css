@@ -4,19 +4,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100dvh;
+  min-height: 100vh;
+  height: 100%;
   width: 100vw;
+  width: 100%;
   background: radial-gradient(ellipse at 30% 20%, rgba(99,102,241,0.15) 0%, transparent 60%),
               radial-gradient(ellipse at 70% 80%, rgba(99,102,241,0.08) 0%, transparent 60%),
               var(--color-bg-primary);
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: max(16px, env(safe-area-inset-top, 16px)) max(16px, env(safe-area-inset-right, 16px)) max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
 }
 
 /* Animated dot grid background */
 #auth-screen::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
   background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
   background-size: 40px 40px;
@@ -31,7 +36,7 @@
 
 /* Floating particles */
 .auth-particle {
-  position: absolute;
+  position: fixed;
   border-radius: 50%;
   background: radial-gradient(circle, var(--color-accent-glow), transparent);
   pointer-events: none;
@@ -53,11 +58,12 @@
 .auth-container {
   width: 100%;
   max-width: 420px;
-  padding: var(--space-2xl);
+  padding: var(--space-xl);
+  margin: auto;
   position: relative;
   z-index: var(--z-elevated);
   animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  background: rgba(15, 22, 41, 0.8);
+  background: rgba(15, 22, 41, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(99,102,241,0.2);
@@ -68,38 +74,38 @@
 /* Logo Area */
 .auth-logo {
   text-align: center;
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-lg);
 }
 
 .auth-logo-icon {
-  font-size: 3.5rem;
+  font-size: 3rem;
   display: block;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
   animation: pulse 3s ease-in-out infinite;
   filter: drop-shadow(0 0 20px rgba(99,102,241,0.5));
 }
 
 .auth-title {
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   background: linear-gradient(135deg, #fff 0%, var(--color-accent-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: var(--space-xs);
+  margin-bottom: 2px;
 }
 
 .auth-subtitle {
   color: var(--color-text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 /* Tabs */
 .auth-tabs {
   display: flex;
   gap: 0;
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-md);
   background: var(--color-bg-tertiary);
   border-radius: var(--radius-md);
   padding: 4px;
@@ -109,7 +115,7 @@
   flex: 1;
   background: transparent;
   color: #cbd5e1;
-  padding: var(--space-sm) var(--space-md);
+  padding: 8px 12px;
   font-weight: 600;
   font-size: 0.875rem;
   border-radius: calc(var(--radius-md) - 2px);
@@ -126,7 +132,7 @@
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: 12px;
   animation: fadeIn 0.25s ease;
 }
 
@@ -135,23 +141,55 @@
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 4px;
 }
 
 .input-group label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #cbd5e1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.btn-full { width: 100%; padding: var(--space-md); font-size: 1rem; font-weight: 700; }
+.input-group .input-field {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.btn-full { width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 8px 0;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--color-border);
+}
+.auth-divider span {
+  padding: 0 10px;
+}
+
+.btn-guest {
+  padding: 10px;
+  font-size: 0.9rem;
+}
 
 .auth-error {
   color: #fca5a5;
-  font-size: 0.85rem;
-  padding: var(--space-sm) var(--space-md);
+  font-size: 0.8rem;
+  padding: 6px 10px;
   background: rgba(239,68,68,0.2);
   border: 1px solid rgba(239,68,68,0.5);
   border-radius: var(--radius-md);
@@ -160,11 +198,99 @@
 
 .auth-success {
   color: #34d399;
-  font-size: 0.85rem;
-  padding: var(--space-sm) var(--space-md);
+  font-size: 0.8rem;
+  padding: 6px 10px;
   background: rgba(52,211,153,0.1);
   border: 1px solid rgba(52,211,153,0.3);
   border-radius: var(--radius-md);
   animation: fadeIn 0.3s ease;
 }
 .auth-success.hidden { display: none; }
+
+/* ─── Yatay Ekran (Mobile Landscape & Dar Yükseklik) Optimizasyonu ─── */
+@media (max-height: 580px), (orientation: landscape) and (max-height: 640px) {
+  #auth-screen {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .auth-container {
+    max-width: 520px;
+    padding: 12px 18px;
+    margin: auto;
+  }
+
+  .auth-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .auth-logo-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+    display: inline-block;
+  }
+
+  .auth-title {
+    font-size: 1.3rem;
+    margin-bottom: 0;
+    display: inline-block;
+  }
+
+  .auth-subtitle {
+    display: none;
+  }
+
+  .auth-tabs {
+    margin-bottom: 8px;
+    padding: 2px;
+  }
+
+  .auth-tab {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
+  .auth-form {
+    gap: 6px;
+  }
+
+  /* Kayıt formunda alanları yan yana 2 sütun yap */
+  .auth-form#register-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .auth-form#register-form .auth-error,
+  .auth-form#register-form .auth-success,
+  .auth-form#register-form #register-btn {
+    grid-column: span 2;
+  }
+
+  .input-group label {
+    font-size: 0.7rem;
+  }
+
+  .input-group .input-field {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .btn-full {
+    padding: 8px;
+    font-size: 0.85rem;
+  }
+
+  .auth-divider {
+    margin: 4px 0;
+  }
+
+  .btn-guest {
+    padding: 6px;
+    font-size: 0.8rem;
+  }
+}

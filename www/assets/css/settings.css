@@ -7,10 +7,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-md);
+  padding: max(8px, env(safe-area-inset-top, 8px)) max(8px, env(safe-area-inset-right, 8px)) max(8px, env(safe-area-inset-bottom, 8px)) max(8px, env(safe-area-inset-left, 8px));
   background: rgba(5, 8, 20, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 #settings-modal.hidden {
@@ -21,8 +23,11 @@
   position: relative;
   width: 100%;
   max-width: 480px;
-  max-height: 85vh;
+  max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: auto;
   background: rgba(15, 22, 41, 0.96);
   border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: var(--radius-xl);
@@ -32,12 +37,6 @@
   flex-direction: column;
   gap: var(--space-lg);
   animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-[data-theme="light"] .settings-modal-card {
-  background: #ffffff;
-  border-color: rgba(79, 70, 229, 0.3);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
 .settings-header {
