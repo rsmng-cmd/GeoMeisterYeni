@@ -66,21 +66,23 @@
   -webkit-forced-color-adjust: none !important;
 }
 
+/* Standart / Aydınlık Mod: Koyu gri karalar ve net ayrıştırılmış sular */
+[data-theme="light"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(1.2) brightness(4.2) contrast(1.1) !important;
+}
+
 [data-theme="light"] .leaflet-container {
-  background: #cbd5e1 !important;
+  background: #2d3748 !important;
+}
+
+/* Koyu Mod: Sular çok daha açık berrak turkuaz-mavi, karalar koyu belirgin */
+[data-theme="dark"] .leaflet-tile-pane,
+:root:not([data-theme="light"]) .leaflet-tile-pane {
+  filter: invert(92%) hue-rotate(185deg) brightness(1.35) contrast(1.25) saturate(2.1) !important;
 }
 
 :root:not([data-theme="light"]) .leaflet-container {
-  background: #090d16 !important;
-}
-
-/* Doğal Dark Matter ve Voyager katmanları için hafif ve güvenli kontrast */
-:root:not([data-theme="light"]) .leaflet-tile-pane {
-  filter: brightness(1.05) contrast(1.1) !important;
-}
-
-[data-theme="light"] .leaflet-tile-pane {
-  filter: brightness(1.0) contrast(1.05) !important;
+  background: #0f2744 !important;
 }
 .leaflet-control-zoom {
   margin-top: 90px !important; /* Top bar'ın altında kalmasın */
