@@ -7,6 +7,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>GeoMeister – Dünya Şehir Tahmin Oyunu</title>
+  <script>
+    (function() {
+      var ua = navigator.userAgent || '';
+      var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      var isIPhone = /iPhone|iPod/.test(ua) || (isIOS && window.screen.width < 500);
+      if (isIOS) document.documentElement.classList.add('is-ios');
+      if (isIPhone) document.documentElement.classList.add('is-iphone');
+    })();
+  </script>
   <meta name="description" content="Dünya haritası üzerinde şehirleri tahmin et, puanını artır ve liderlik tablosunda yerine yüksel!" />
 
   <!-- Google Fonts -->

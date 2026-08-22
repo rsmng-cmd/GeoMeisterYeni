@@ -985,3 +985,152 @@
     margin-bottom: 10px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   iPhone Özel Ultra-Kompakt UI (Safari Çubukları Varken Bile Ferah Görünüm)
+   ══════════════════════════════════════════════════════════════════════ */
+.is-iphone .game-top-bar {
+  top: max(4px, env(safe-area-inset-top, 4px));
+  left: max(4px, env(safe-area-inset-left, 4px));
+  right: max(4px, env(safe-area-inset-right, 4px));
+  padding: 3px 8px;
+  gap: 4px;
+  border-radius: 10px;
+  background: rgba(15, 22, 41, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.is-iphone .btn-back,
+.is-iphone .btn-game-fullscreen {
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.is-iphone .offline-timer-box {
+  padding: 1px 6px;
+  gap: 3px;
+  margin-left: 1px;
+}
+
+.is-iphone .offline-timer-track {
+  width: 22px;
+  height: 3px;
+}
+
+.is-iphone .timer-text {
+  font-size: 0.7rem;
+  min-width: 18px;
+}
+
+.is-iphone .game-question {
+  padding: 2px 8px;
+  border-radius: 6px;
+  gap: 4px;
+}
+
+.is-iphone .question-label {
+  font-size: 0.62rem;
+}
+
+.is-iphone .question-city {
+  font-size: 0.92rem;
+  line-height: 1.15;
+}
+
+.is-iphone .question-country {
+  font-size: 0.7rem;
+}
+
+.is-iphone .game-progress {
+  max-width: 140px;
+  gap: 3px;
+}
+
+.is-iphone .progress-bar-track {
+  height: 3px;
+}
+
+.is-iphone .round-counter {
+  font-size: 0.65rem;
+}
+
+.is-iphone .game-score-box {
+  min-width: 80px;
+  gap: 1px;
+  padding: 0;
+}
+
+.is-iphone .score-current {
+  font-size: 0.9rem;
+}
+
+.is-iphone .score-target {
+  font-size: 0.68rem;
+}
+
+.is-iphone .score-unit {
+  font-size: 0.58rem;
+}
+
+.is-iphone .score-bar-track {
+  height: 3px;
+}
+
+/* iPhone Tur Sonucu Kartı (Minyatür, İnce ve Haritayı Kapatmayan Şık Panel) */
+.is-iphone .round-result-modal {
+  bottom: max(6px, env(safe-area-inset-bottom, 6px));
+  right: max(6px, env(safe-area-inset-right, 6px));
+  max-width: 240px;
+  padding: 0;
+}
+
+.is-iphone .round-result-card {
+  width: 230px;
+  padding: 8px 12px;
+  gap: 6px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(99, 102, 241, 0.2);
+  background: rgba(15, 22, 41, 0.97);
+}
+
+.is-iphone .result-top {
+  margin-bottom: 0;
+}
+
+.is-iphone .result-label {
+  font-size: 0.82rem;
+}
+
+.is-iphone .result-score {
+  font-size: 1.25rem;
+}
+
+.is-iphone .round-result-panel {
+  padding: 5px 8px;
+  gap: 3px;
+}
+
+.is-iphone .result-distance {
+  font-size: 0.74rem;
+  gap: 4px;
+}
+
+.is-iphone #next-btn {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.is-iphone .leaflet-control-zoom {
+  margin-top: 45px !important;
+}
+
+.is-iphone .leaflet-control-zoom a {
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 14px !important;
+}
