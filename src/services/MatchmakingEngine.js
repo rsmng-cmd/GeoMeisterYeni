@@ -55,10 +55,9 @@ export class MatchmakingEngine {
 
   /**
    * 1v1 Eşleşme Kuyruğunu Başlatır.
-   *   - 0-6sn: ±30 ELO yakınlığındaki rakip
-   *   - 6-15sn: ±100 ELO yakınlığındaki rakip
-   *   - 15-24sn: Tüm ELO seviyelerinde canlı oyuncu
-   *   - 25sn+: Rütbeye özel Bot Rakip Ataması
+   *   - 0-7sn: ±30 ELO yakınlığındaki rakip (en yakın ELO öncelikli)
+   *   - 7-15sn: Tüm ELO seviyelerinde canlı oyuncular (en yakın ELO öncelikli)
+   *   - 15sn: Canlı oyuncu yoksa rütbeye özel Bot Rakip Ataması
    */
   async startSearch({ user, modeId, onStatusChange, onMatchFound }) {
     this.cancelSearch();
@@ -133,7 +132,7 @@ export class MatchmakingEngine {
       }
     }
 
-    // Eşleştirme Arama Döngüsü
+    // Eşleştirme Arama Döngüsü (Toplam 15 saniye)
     this.queueTimer = setInterval(async () => {
       if (this.activeSearchId !== searchId || this.matchHandled) {
         clearInterval(this.queueTimer);
@@ -147,22 +146,21 @@ export class MatchmakingEngine {
       this.isMatchingInProgress = true;
 
       try {
-        if (secondsElapsed <= 6) {
+        if (secondsElapsed <= 7) {
+          // 0 - 7 saniye: ±30 ELO yakınlığında ara (en yakın ELO öncelikli)
           this._notifyStatus(`Eşleşme aranıyor... (±30 ELO) [${secondsElapsed}s]`, secondsElapsed);
           await this._findMatch(modeId, 30, me, stats, onMatchFound, searchId);
-        } else if (secondsElapsed <= 15) {
-          this._notifyStatus(`Uygun rakip aranıyor... (Genişletilmiş ELO) [${secondsElapsed}s]`, secondsElapsed);
-          await this._findMatch(modeId, 100, me, stats, onMatchFound, searchId);
-        } else if (secondsElapsed <= 24) {
+        } else if (secondsElapsed < 15) {
+          // 7 - 15 saniye: Tüm oyuncular arasında ara (en yakın ELO öncelikli)
           this._notifyStatus(`Aralık genişletildi... (Tüm Oyuncular) [${secondsElapsed}s]`, secondsElapsed);
           await this._findMatch(modeId, null, me, stats, onMatchFound, searchId);
         } else {
-          // 25. saniyede bot ata
+          // 15. saniyede bot ata
           clearInterval(this.queueTimer);
           this.queueTimer = null;
           if (!this.matchHandled && this.activeSearchId === searchId) {
             this.matchHandled = true;
-            this._notifyStatus(`Rakip bulundu! Maç başlatılıyor...`, 25);
+            this._notifyStatus(`Rakip bulundu! Maç başlatılıyor...`, 15);
             this._assignBotMatch(modeId, me, stats, onMatchFound);
           }
         }
