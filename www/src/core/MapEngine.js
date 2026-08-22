@@ -67,8 +67,11 @@ export class MapEngine {
 
     this.map = L.map(this.containerId, mapOptions);
 
-    // Ülke sınırları ve kıyıları gösteren, araba/sokak yolları içermeyen temiz katman
-    const tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png';
+    // Tema durumuna göre en uygun doğal katmanı seç (Filtresiz %100 her tarayıcıda eşit)
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const tileUrl = isLight
+      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png';
 
     L.tileLayer(tileUrl, {
       subdomains: 'abcd',
