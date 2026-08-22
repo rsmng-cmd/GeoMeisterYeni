@@ -98,25 +98,23 @@ export class RoomManager {
       score: 0,
     };
 
-    // 1. Local Fallback dene
-    let room = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
-
-    // 2. Firestore'da dene (1.5s timeout)
+    let room = null;
     const fns = await getFsFns();
-    if (db && fns && !room) {
+    if (db && fns) {
       try {
-        const fetchPromise = (async () => {
-          const ref = fns.doc(db, 'customRooms', formattedCode);
-          return await fns.getDoc(ref);
-        })();
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1500));
-        const snap = await Promise.race([fetchPromise, timeoutPromise]);
-        if (snap && snap.exists()) {
+        const ref = fns.doc(db, 'customRooms', formattedCode);
+        const snap = await fns.getDoc(ref);
+        if (snap.exists()) {
           room = snap.data();
         }
       } catch (e) {
         console.warn('[RoomManager] Firestore join room read warning:', e);
       }
+    }
+
+    // Local Fallback if Firestore read didn't find or is offline
+    if (!room) {
+      room = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
     }
 
     if (!room) {
@@ -127,21 +125,27 @@ export class RoomManager {
       throw new Error('Bu oda oyunu başlatmış veya tamamlanmış!');
     }
 
-    if (room.players.length >= room.maxPlayers) {
+    if (room.players && room.players.length >= room.maxPlayers) {
       throw new Error(`Oda dolu! (Maksimum ${room.maxPlayers} oyuncu)`);
+    }
+
+    if (!Array.isArray(room.players)) {
+      room.players = [];
     }
 
     // Zaten ekli mi kontrol et
     const existingIndex = room.players.findIndex(p => p.uid === playerObj.uid);
     if (existingIndex === -1) {
       room.players.push(playerObj);
+    } else {
+      room.players[existingIndex] = { ...room.players[existingIndex], ...playerObj };
     }
 
     this.currentRoom = room;
     localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(room));
 
     if (db && fns) {
-      fns.updateDoc(fns.doc(db, 'customRooms', formattedCode), {
+      await fns.updateDoc(fns.doc(db, 'customRooms', formattedCode), {
         players: room.players,
       }).catch(e => console.warn('[RoomManager] Firestore join update warning:', e));
     }
@@ -296,7 +300,10 @@ export class RoomManager {
   async listenToRoom(roomCode, onChange) {
     const formattedCode = roomCode.trim().toUpperCase();
 
-    // Anlık mevcut odayı hemen bildir
+    // Önceki dinleyici varsa durdur
+    this.stopListening();
+
+    // Anlık mevcut odayı bildir
     if (this.currentRoom && this.currentRoom.code === formattedCode) {
       onChange(this.currentRoom);
     }

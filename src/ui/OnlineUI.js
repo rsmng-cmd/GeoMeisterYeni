@@ -436,35 +436,40 @@ export class OnlineUI {
     // Anlık oyuncu listesini hemen göster
     renderPlayers(room.players);
 
-    // Eski maçın tetiklenmesini önlemek için son matchId'yi kaydet
-    let lastHandledMatchId = room.matchId || null;
+    let matchStarted = false;
 
     roomManager.listenToRoom(room.code, (updatedRoom) => {
-      // SADECE lobi sahibi "Oyunu Başlat" dediğinde ve YENİ bir matchId üretildiğinde başla!
-      if (updatedRoom.status === 'playing' && updatedRoom.matchId && updatedRoom.matchId !== lastHandledMatchId) {
-        lastHandledMatchId = updatedRoom.matchId;
+      if (!updatedRoom) return;
+
+      // Oda 'playing' durumuna geçtiğinde hem kurucu hem davet edilen oyuncuda maçı başlat!
+      if (updatedRoom.status === 'playing' && !matchStarted) {
+        matchStarted = true;
         roomManager.stopListening();
         lobbyBox?.classList.add('hidden');
         this.hide(true); // Direkt başla — lobiden çıkılsın mı uyarısı verme!
+
+        const currentUid = this.currentUser?.uid || (this.currentUser ? this.currentUser.uid : 'guest');
+        const isCurrentHost = updatedRoom.hostUid === currentUid || (updatedRoom.players && updatedRoom.players.some(p => p.uid === currentUid && p.isHost));
+        const opponentPlayer = (updatedRoom.players && updatedRoom.players.find(p => p.uid !== currentUid)) || {
+          uid: updatedRoom.hostUid || 'opponent_host',
+          displayName: isCurrentHost ? 'GeoBot' : 'Oda Sahibi',
+          elo: 50,
+          rank: { name: 'Bronz', color: '#cd7f32', icon: '🥉' }
+        };
+
         if (this.onStartMatchCallback) {
-          const opponentPlayer = updatedRoom.players.find(p => p.uid !== myUid) || {
-            uid: 'guest_bot',
-            displayName: 'GeoBot',
-            elo: 50,
-            rank: { name: 'Bronz', color: '#cd7f32', icon: '🥉' }
-          };
           this.onStartMatchCallback({
-            modeId: updatedRoom.modeId,
+            modeId: updatedRoom.modeId || 'world',
             matchData: {
-              matchId: updatedRoom.matchId || updatedRoom.roomId || `room_${updatedRoom.code}`,
+              matchId: updatedRoom.matchId || `room_${updatedRoom.code}`,
               roomCode: updatedRoom.code,
               isRoomMatch: true,
               isFriendMatch: true,
-              isHost: isHost,
-              isBot: updatedRoom.players.length === 1,
+              isHost: isCurrentHost,
+              isBot: (updatedRoom.players || []).length <= 1,
               opponent: opponentPlayer,
               questions: updatedRoom.questions || room.questions || [],
-              players: updatedRoom.players,
+              players: updatedRoom.players || [],
             },
           });
         }

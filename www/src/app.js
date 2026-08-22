@@ -460,7 +460,20 @@ class App {
     this.activeGame.start('map-container');
   }
 
-  _startOnlineMatch(modeId, matchData) {
+  _startOnlineMatch(modeIdOrPayload, maybeMatchData) {
+    let modeId = modeIdOrPayload;
+    let matchData = maybeMatchData;
+
+    if (typeof modeIdOrPayload === 'object' && modeIdOrPayload !== null) {
+      if (modeIdOrPayload.matchData) {
+        matchData = modeIdOrPayload.matchData;
+        modeId = modeIdOrPayload.modeId || matchData.modeId || 'world';
+      } else {
+        matchData = modeIdOrPayload;
+        modeId = matchData.modeId || 'world';
+      }
+    }
+
     const mode = getModeById(modeId) || getModeById('world');
     this._destroyActiveGame();
     this._hideAllScreens();
