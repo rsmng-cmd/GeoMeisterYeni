@@ -217,7 +217,10 @@ export class RoomManager {
       this.currentRoom.questions = getSeededQuestions(dataSource, formattedCode, 10);
     }
 
+    const matchId = `room_${formattedCode}_${Date.now()}`;
     this.currentRoom.status = 'playing';
+    this.currentRoom.matchId = matchId;
+    this.currentRoom.startedAt = Date.now();
     localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(this.currentRoom));
 
     const fns = await getFsFns();
@@ -225,6 +228,7 @@ export class RoomManager {
       fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
         ...this.currentRoom,
         status: 'playing',
+        matchId: matchId,
         questions: this.currentRoom.questions,
         startedAt: fns.serverTimestamp(),
       }, { merge: true }).catch(e => console.warn('[RoomManager] Firestore start game warning:', e));
@@ -246,7 +250,7 @@ export class RoomManager {
     }
 
     const fns = await getFsFns();
-    if (db && fns && (!room || !room.players || room.players.length === 0)) {
+    if (db && fns) {
       try {
         const snap = await fns.getDoc(fns.doc(db, 'customRooms', formattedCode));
         if (snap.exists()) {
@@ -264,6 +268,7 @@ export class RoomManager {
     const newQuestions = getSeededQuestions(dataSource, `${formattedCode}_${Date.now()}`, 10);
 
     room.status = 'waiting';
+    room.matchId = null;
     room.questions = newQuestions;
     room.currentRound = 1;
     this.currentRoom = room;
@@ -273,8 +278,9 @@ export class RoomManager {
     } catch {}
 
     if (db && fns) {
-      fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
+      await fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
         status: 'waiting',
+        matchId: null,
         questions: newQuestions,
         currentRound: 1,
         resetAt: fns.serverTimestamp(),

@@ -393,10 +393,9 @@ export class OnlineUI {
     }
     this.container?.classList.remove('hidden');
 
-    let room = null;
-    if (isHost) {
-      room = await roomManager.resetRoomToLobby(roomCode);
-    } else {
+    // Odayı sıfırla ve 'waiting' modunda lobiye gir
+    let room = await roomManager.resetRoomToLobby(roomCode);
+    if (!room) {
       room = await roomManager.joinRoom(roomCode, this.currentUser).catch(async () => {
         return await roomManager.resetRoomToLobby(roomCode);
       });
@@ -437,8 +436,13 @@ export class OnlineUI {
     // Anlık oyuncu listesini hemen göster
     renderPlayers(room.players);
 
+    // Eski maçın tetiklenmesini önlemek için son matchId'yi kaydet
+    let lastHandledMatchId = room.matchId || null;
+
     roomManager.listenToRoom(room.code, (updatedRoom) => {
-      if (updatedRoom.status === 'playing') {
+      // SADECE lobi sahibi "Oyunu Başlat" dediğinde ve YENİ bir matchId üretildiğinde başla!
+      if (updatedRoom.status === 'playing' && updatedRoom.matchId && updatedRoom.matchId !== lastHandledMatchId) {
+        lastHandledMatchId = updatedRoom.matchId;
         roomManager.stopListening();
         lobbyBox?.classList.add('hidden');
         this.hide(true); // Direkt başla — lobiden çıkılsın mı uyarısı verme!
@@ -452,7 +456,7 @@ export class OnlineUI {
           this.onStartMatchCallback({
             modeId: updatedRoom.modeId,
             matchData: {
-              matchId: updatedRoom.roomId || `room_${updatedRoom.code}`,
+              matchId: updatedRoom.matchId || updatedRoom.roomId || `room_${updatedRoom.code}`,
               roomCode: updatedRoom.code,
               isRoomMatch: true,
               isFriendMatch: true,
@@ -473,6 +477,11 @@ export class OnlineUI {
 
   _handleStartLobbyGame() {
     if (roomManager.currentRoom) {
+      const playersCount = roomManager.currentRoom.players ? roomManager.currentRoom.players.length : 1;
+      if (playersCount < 2) {
+        const proceedWithBot = confirm('Arkadaşınız henüz lobiye dönmedi veya ayrıldı.\n\nOyun bir Bot rakip ile başlatılsın mı?');
+        if (!proceedWithBot) return;
+      }
       roomManager.startGame(roomManager.currentRoom.code);
     }
   }
@@ -621,6 +630,9 @@ export class OnlineUI {
     document.getElementById('btn-return-home-online')?.addEventListener('click', () => {
       document.getElementById('online-gameover-modal')?.remove();
       document.getElementById('online-live-toast')?.remove();
+      if (isRoomMatch && result.roomCode) {
+        roomManager.leaveRoom(result.roomCode, this.currentUser);
+      }
       if (onReturnHome) onReturnHome();
       else window.location.hash = 'home';
     });
