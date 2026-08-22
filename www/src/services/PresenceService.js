@@ -12,17 +12,22 @@
 import { db, firebaseReady } from '../config/firebase.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[PresenceService] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[PresenceService] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
-const HEARTBEAT_INTERVAL = 180_000; // 3 dakika
-const OFFLINE_THRESHOLD = 360_000;  // 6 dakika (2 heartbeat kaçarsa çevrimdışı)
-const POLL_INTERVAL = 30_000;       // Panel açıkken 30 saniyede bir arkadaş durumu güncelle
+const HEARTBEAT_INTERVAL = 25_000; // 25 saniyede bir aktiflik yenileme
+const OFFLINE_THRESHOLD = 90_000;  // 90 saniye (kalp atışı gelmezse çevrimdışı)
+const POLL_INTERVAL = 15_000;       // Panel açıkken 15 saniyede bir arkadaş durumu güncelle
 
 export class PresenceService {
   constructor() {
@@ -121,14 +126,15 @@ export class PresenceService {
     } catch {}
 
     // Firestore (arka plan)
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        await fsFns.setDoc(fsFns.doc(db, 'presence', uid), {
+        await fns.setDoc(fns.doc(db, 'presence', uid), {
           ...presenceData,
-          lastSeen: fsFns.serverTimestamp(),
+          lastSeen: fns.serverTimestamp(),
         }, { merge: true });
       } catch (e) {
-        // Sessizce devam et — çevrimdışı olabilir
+        // Sessizce devam et
       }
     }
   }
@@ -154,8 +160,8 @@ export class PresenceService {
 
     const presenceMap = {};
 
-    // Firestore'dan toplu çek (batch — max 10 per 'in' query)
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         const batches = [];
         for (let i = 0; i < this._friendUids.length; i += 10) {
@@ -164,12 +170,12 @@ export class PresenceService {
         }
 
         for (const batch of batches) {
-          const q = fsFns.query(
-            fsFns.collection(db, 'presence'),
-            fsFns.where('uid', 'in', batch)
+          const q = fns.query(
+            fns.collection(db, 'presence'),
+            fns.where('uid', 'in', batch)
           );
           const snap = await Promise.race([
-            fsFns.getDocs(q),
+            fns.getDocs(q),
             new Promise(resolve => setTimeout(() => resolve(null), 3000)),
           ]);
           if (snap) {
@@ -211,27 +217,12 @@ export class PresenceService {
   // ─── Sayfa Olayları ────────────────────────────────────────
 
   _bindPageEvents() {
-    this._visibilityTimeout = null;
-
     this._onBeforeUnload = () => {
       this._setPresenceSync('offline');
     };
 
     this._onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // Ekran küçültüldüğünde veya sekme değiştirildiğinde hemen çevrimdışı yapma!
-        // 3 dakika boyunca geri gelmezse çevrimdışına al
-        if (this._visibilityTimeout) clearTimeout(this._visibilityTimeout);
-        this._visibilityTimeout = setTimeout(() => {
-          if (document.visibilityState === 'hidden') {
-            this._setPresence('offline', '');
-          }
-        }, 180_000); // 3 dakika tolerans
-      } else if (document.visibilityState === 'visible' && this._currentUser) {
-        if (this._visibilityTimeout) {
-          clearTimeout(this._visibilityTimeout);
-          this._visibilityTimeout = null;
-        }
+      if (document.visibilityState === 'visible' && this._currentUser) {
         this._setPresence('online', this._currentActivity);
       }
     };
@@ -241,10 +232,6 @@ export class PresenceService {
   }
 
   _unbindPageEvents() {
-    if (this._visibilityTimeout) {
-      clearTimeout(this._visibilityTimeout);
-      this._visibilityTimeout = null;
-    }
     if (this._onBeforeUnload) {
       window.removeEventListener('beforeunload', this._onBeforeUnload);
     }

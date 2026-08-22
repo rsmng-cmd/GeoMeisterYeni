@@ -1,16 +1,16 @@
-/* online.css — Online Modu, Matchmaking ve Rütbe Stilleri */
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--space-md);
+  padding: max(12px, env(safe-area-inset-top, 12px)) max(12px, env(safe-area-inset-right, 12px)) max(12px, env(safe-area-inset-bottom, 12px)) max(12px, env(safe-area-inset-left, 12px));
   background: rgba(5, 8, 20, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-backdrop.hidden {
@@ -20,6 +20,7 @@
 .online-modal-card {
   width: 100%;
   max-width: 580px;
+  margin: auto 0;
   background: rgba(15, 22, 41, 0.96);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(99, 102, 241, 0.35);
@@ -650,20 +651,21 @@
 }
 
 /* ═══ Yatay Ekran (Mobile Landscape & Dar Yükseklik) Optimizasyonu — Online Hub ═══ */
-@media (max-height: 600px), (orientation: landscape) and (max-height: 650px) {
+@media (max-height: 680px), (orientation: landscape) and (max-height: 720px) {
   .modal-backdrop {
-    align-items: flex-start;
-    padding: 6px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    align-items: flex-start !important;
+    padding: 8px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .online-modal-card {
-    max-width: 620px;
-    padding: 10px 14px;
-    gap: 6px;
-    max-height: none;
-    margin: auto;
+    max-width: 640px !important;
+    padding: 10px 14px !important;
+    gap: 6px !important;
+    margin: 10px auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .online-header {
