@@ -95,6 +95,20 @@ export class OnlineUI {
               <h3>Özel Oda Lobisi</h3>
               <div id="lobby-code-display" class="lobby-code-badge">GEO-XXXX</div>
             </div>
+
+            <!-- Lobi İçi Mod Seçici -->
+            <div class="lobby-mode-section">
+              <div class="lobby-section-title">🗺️ Seçili Oyun Modu:</div>
+              <div class="lobby-mode-chips" id="lobby-mode-chips">
+                <button type="button" class="lobby-chip active" data-mode="world">🌍 Dünya</button>
+                <button type="button" class="lobby-chip" data-mode="turkey">🇹🇷 Türkiye</button>
+                <button type="button" class="lobby-chip" data-mode="europe">🇪🇺 Avrupa</button>
+                <button type="button" class="lobby-chip" data-mode="asia">🌏 Asya</button>
+                <button type="button" class="lobby-chip" data-mode="americas">🌎 Amerika</button>
+                <button type="button" class="lobby-chip" data-mode="africa">🌍 Afrika</button>
+              </div>
+            </div>
+
             <div class="lobby-players-list" id="lobby-players-list">
               <!-- Oyuncular buraya gelecek -->
             </div>
@@ -416,10 +430,37 @@ export class OnlineUI {
     if (codeDisplay) codeDisplay.innerText = room.code;
 
     const myUid = this.currentUser?.uid || room.hostUid;
-    const isHost = room.hostUid === myUid || room.players.some(p => p.uid === myUid && p.isHost);
+    const isHost = room.hostUid === myUid || (room.players && room.players.some(p => p.uid === myUid && p.isHost));
     if (startBtn) {
       if (isHost) startBtn.classList.remove('hidden');
       else startBtn.classList.add('hidden');
+    }
+
+    // Lobi Mod Seçici Çiplerini Başlat
+    const chipsContainer = document.getElementById('lobby-mode-chips');
+    const currentMode = room.modeId || this.selectedModeId || 'world';
+    this.selectedModeId = currentMode;
+
+    if (chipsContainer) {
+      const chips = chipsContainer.querySelectorAll('.lobby-chip');
+      chips.forEach(chip => {
+        const mode = chip.dataset.mode || chip.getAttribute('data-mode');
+        chip.classList.toggle('active', mode === currentMode);
+        if (!isHost) {
+          chip.classList.add('guest-disabled');
+          chip.style.pointerEvents = 'none';
+        } else {
+          chip.classList.remove('guest-disabled');
+          chip.style.pointerEvents = 'auto';
+          chip.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.selectedModeId = mode;
+            chips.forEach(c => c.classList.toggle('active', c === chip));
+            await roomManager.updateRoomMode(room.code, mode);
+          };
+        }
+      });
     }
 
     const renderPlayers = (players) => {
@@ -439,7 +480,24 @@ export class OnlineUI {
     let matchStarted = false;
 
     roomManager.listenToRoom(room.code, (updatedRoom) => {
-      if (!updatedRoom) return;
+      // Lobi kurucusu ayrıldıysa veya oda silindiyse misafiri lobiden at
+      if (!updatedRoom || updatedRoom.status === 'closed') {
+        roomManager.stopListening();
+        lobbyBox?.classList.add('hidden');
+        alert('Oda kurucusu ayrıldığı için lobi kapatıldı.');
+        this.show();
+        return;
+      }
+
+      // Kurucu modu değiştirdiyse tüm oyuncuların ekranında güncelle
+      if (updatedRoom.modeId && updatedRoom.modeId !== this.selectedModeId) {
+        this.selectedModeId = updatedRoom.modeId;
+        const chips = document.querySelectorAll('.lobby-chip');
+        chips.forEach(chip => {
+          const mode = chip.dataset.mode || chip.getAttribute('data-mode');
+          chip.classList.toggle('active', mode === updatedRoom.modeId);
+        });
+      }
 
       // Oda 'playing' durumuna geçtiğinde hem kurucu hem davet edilen oyuncuda maçı başlat!
       if (updatedRoom.status === 'playing' && !matchStarted) {
@@ -459,7 +517,7 @@ export class OnlineUI {
 
         if (this.onStartMatchCallback) {
           this.onStartMatchCallback({
-            modeId: updatedRoom.modeId || 'world',
+            modeId: updatedRoom.modeId || this.selectedModeId || 'world',
             matchData: {
               matchId: updatedRoom.matchId || `room_${updatedRoom.code}`,
               roomCode: updatedRoom.code,
@@ -487,7 +545,7 @@ export class OnlineUI {
         const proceedWithBot = confirm('Arkadaşınız henüz lobiye dönmedi veya ayrıldı.\n\nOyun bir Bot rakip ile başlatılsın mı?');
         if (!proceedWithBot) return;
       }
-      roomManager.startGame(roomManager.currentRoom.code);
+      roomManager.startGame(roomManager.currentRoom.code, this.selectedModeId);
     }
   }
 

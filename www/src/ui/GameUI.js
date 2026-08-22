@@ -171,7 +171,6 @@ export class GameUI {
     const { levelScore, runTotalScore, totalScore, maxPossible, mode, levelConfig, isPassed, passScore } = result;
 
     this._hideResult();
-    document.getElementById('click-hint')?.classList.add('hidden');
 
     const panel = document.getElementById('level-complete-panel');
     if (!panel) return;

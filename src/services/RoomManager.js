@@ -154,7 +154,25 @@ export class RoomManager {
   }
 
   /**
-   * Odadan Ayrılma (Oyuncu Lobiyi Terk Ettiğinde)
+   * Oda Modunu Güncelleme (Lobi Sırasında Kurucu Değiştirebilir)
+   */
+  async updateRoomMode(roomCode, modeId) {
+    if (!roomCode || !modeId) return;
+    const formattedCode = roomCode.trim().toUpperCase();
+    if (this.currentRoom) {
+      this.currentRoom.modeId = modeId;
+      localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(this.currentRoom));
+    }
+    const fns = await getFsFns();
+    if (db && fns) {
+      await fns.updateDoc(fns.doc(db, 'customRooms', formattedCode), {
+        modeId: modeId,
+      }).catch(e => console.warn('[RoomManager] Firestore update mode warning:', e));
+    }
+  }
+
+  /**
+   * Odadan Ayrılma (Kurucu Ayrılınca Oda Kapatılır, Oyuncular Ayrılınca Listeden Çıkar)
    */
   async leaveRoom(roomCode, user) {
     if (!roomCode) return;
@@ -162,19 +180,16 @@ export class RoomManager {
     const userUid = user?.uid;
 
     this.stopListening();
+    const leavingIsHost = this.currentRoom?.hostUid === userUid || !this.currentRoom?.hostUid;
     this.currentRoom = null;
 
     try {
-      const stored = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
-      if (stored && Array.isArray(stored.players)) {
-        stored.players = stored.players.filter(p => p.uid !== userUid);
-        if (stored.players.length === 0) {
-          localStorage.removeItem(`geomeister_room_${formattedCode}`);
-        } else {
-          if (stored.hostUid === userUid && stored.players[0]) {
-            stored.hostUid = stored.players[0].uid;
-            stored.players[0].isHost = true;
-          }
+      if (leavingIsHost) {
+        localStorage.removeItem(`geomeister_room_${formattedCode}`);
+      } else {
+        const stored = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
+        if (stored && Array.isArray(stored.players)) {
+          stored.players = stored.players.filter(p => p.uid !== userUid);
           localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(stored));
         }
       }
@@ -184,22 +199,23 @@ export class RoomManager {
     if (db && fns) {
       try {
         const ref = fns.doc(db, 'customRooms', formattedCode);
-        const snap = await fns.getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          const updatedPlayers = (data.players || []).filter(p => p.uid !== userUid);
-          if (updatedPlayers.length === 0) {
-            await fns.deleteDoc(ref);
-          } else {
-            let updatedHostUid = data.hostUid;
-            if (data.hostUid === userUid && updatedPlayers[0]) {
-              updatedHostUid = updatedPlayers[0].uid;
-              updatedPlayers[0].isHost = true;
+        if (leavingIsHost) {
+          // Lobi sahibi ayrılınca odayı kapat ve sil
+          await fns.setDoc(ref, { status: 'closed' }, { merge: true }).catch(() => {});
+          await fns.deleteDoc(ref).catch(() => {});
+        } else {
+          // Normal oyuncu ayrılınca listeden çıkar
+          const snap = await fns.getDoc(ref);
+          if (snap.exists()) {
+            const data = snap.data();
+            const updatedPlayers = (data.players || []).filter(p => p.uid !== userUid);
+            if (updatedPlayers.length === 0) {
+              await fns.deleteDoc(ref);
+            } else {
+              await fns.updateDoc(ref, {
+                players: updatedPlayers,
+              });
             }
-            await fns.updateDoc(ref, {
-              players: updatedPlayers,
-              hostUid: updatedHostUid,
-            });
           }
         }
       } catch (e) {
@@ -209,17 +225,18 @@ export class RoomManager {
   }
 
   /**
-   * Oda Sahibi Oyunu Başlatır
+   * Oda Sahibi Oyunu Başlatır (Seçili modu uygular)
    */
-  async startGame(roomCode) {
+  async startGame(roomCode, selectedModeId = null) {
     const formattedCode = roomCode.trim().toUpperCase();
     if (!this.currentRoom) return;
 
-    if (!this.currentRoom.questions || this.currentRoom.questions.length === 0) {
-      const mode = getModeById(this.currentRoom.modeId) || getModeById('world');
-      const dataSource = mode?.dataSource || this.currentRoom.modeId || 'world';
-      this.currentRoom.questions = getSeededQuestions(dataSource, formattedCode, 10);
-    }
+    const finalModeId = selectedModeId || this.currentRoom.modeId || 'world';
+    this.currentRoom.modeId = finalModeId;
+
+    const mode = getModeById(finalModeId) || getModeById('world');
+    const dataSource = mode?.dataSource || finalModeId;
+    this.currentRoom.questions = getSeededQuestions(dataSource, `${formattedCode}_${Date.now()}`, 10);
 
     const matchId = `room_${formattedCode}_${Date.now()}`;
     this.currentRoom.status = 'playing';
@@ -231,6 +248,7 @@ export class RoomManager {
     if (db && fns) {
       fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
         ...this.currentRoom,
+        modeId: finalModeId,
         status: 'playing',
         matchId: matchId,
         questions: this.currentRoom.questions,
