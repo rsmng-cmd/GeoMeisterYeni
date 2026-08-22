@@ -227,17 +227,20 @@ class App {
     // Arkadaşlar butonu (Slide Panel Toggle)
     document.getElementById('friends-btn')?.addEventListener('click', () => this.friendsUI.toggle());
 
-    // Tam Ekran Butonu (Header & Mobil Toggle)
+    // Tam Ekran Butonu (Header, Oyun İçi & Mobil Toggle)
     const toggleFullscreen = () => this._toggleFullscreen();
     document.getElementById('fullscreen-btn')?.addEventListener('click', toggleFullscreen);
+    document.getElementById('game-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
     document.getElementById('floating-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
 
     // Fullscreen state listener
     const updateFsIcons = () => {
       const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
       const fsBtn = document.getElementById('fullscreen-btn');
+      const gameFsBtn = document.getElementById('game-fullscreen-btn');
       const floatFsBtn = document.getElementById('floating-fullscreen-btn');
       if (fsBtn) fsBtn.textContent = isFs ? '🗗' : '⛶';
+      if (gameFsBtn) gameFsBtn.textContent = isFs ? '🗗' : '⛶';
       if (floatFsBtn) floatFsBtn.style.display = isFs ? 'none' : '';
     };
 
