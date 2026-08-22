@@ -45,15 +45,19 @@ export function distanceToScore(distanceKm, multiplier = 1.0, modeId = null, tim
   let score;
 
   if (modeId === 'turkey' || multiplier === 0.7) {
-    // Türkiye Modu: Küçük harita ölçeği, %30 daha sıkı mesafe cezası (Max 1000 Puan)
-    if (distanceKm <= 15) {
+    // Türkiye Modu Puanlaması:
+    // 0 – 10 km: 1000 puan (tam puan)
+    // 10 – 200 km: her km için -2 puan (1000 -> 620)
+    // 200 – 350 km: her km için -3 puan (620 -> 170)
+    // 350+ km: her km için -1 puan (170 -> 0)
+    if (distanceKm <= 10) {
       score = 1000;
-    } else if (distanceKm <= 150) {
-      score = 1000 - (distanceKm - 15) * 2.8;
+    } else if (distanceKm <= 200) {
+      score = 1000 - (distanceKm - 10) * 2;
     } else if (distanceKm <= 350) {
-      score = 620 - (distanceKm - 150) * 1.8;
+      score = 620 - (distanceKm - 200) * 3;
     } else {
-      score = 260 - (distanceKm - 350) * 0.8;
+      score = 170 - (distanceKm - 350) * 1;
     }
   } else {
     // Dünya & Diğer Modlar: Normal Ölçek (Max 1000 Puan)

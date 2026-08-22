@@ -208,7 +208,7 @@ export class OnlineGameEngine {
     this.playersState.me.currentGuess = null;
     this.playersState.opponent.currentGuess = null;
 
-    this.mapEngine.clearMarkers();
+    this.mapEngine.resetForNewRound();
     this.mapEngine.enableClick();
 
     const currentQuestion = this.questions[this.currentRoundIndex];

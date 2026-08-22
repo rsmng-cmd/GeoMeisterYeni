@@ -49,7 +49,6 @@ export class HomeUI {
           <div class="mode-card-lock">🔒</div>
           <div class="mode-card-icon">${mode.icon}</div>
           <div class="mode-card-name">${mode.name}</div>
-          <div class="mode-card-desc">${mode.description || ''}</div>
           <div class="mode-card-footer">
             <span class="badge badge-coming">Yakında...</span>
           </div>
@@ -61,7 +60,6 @@ export class HomeUI {
         <div class="mode-card-glow"></div>
         <div class="mode-card-icon">${mode.icon}</div>
         <div class="mode-card-name">${mode.name}</div>
-        <div class="mode-card-desc">${mode.description || ''}</div>
         <div class="mode-card-footer">
           <span class="mode-card-play">Oyna →</span>
         </div>

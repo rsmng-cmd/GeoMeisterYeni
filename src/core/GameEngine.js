@@ -109,6 +109,7 @@ export class GameEngine {
 
     this.currentRound++;
     this.lastGuess = null;
+    this.mapEngine?.resetForNewRound();
 
     if (this.cityPool.length === 0) {
       this.cityPool = this._shuffle([...this.cities]);
