@@ -29,6 +29,12 @@ export class ProfileUI {
 
     const displayName = user?.displayName || 'Misafir';
 
+    // Kendi profilimizde "Arkadaş Ekle" butonunu gizle
+    const actionBtn = document.getElementById('btn-profile-add-friend');
+    if (actionBtn) {
+      actionBtn.style.display = 'none';
+    }
+
     // Header
     const nameEl = document.getElementById('profile-name');
     const emailEl = document.getElementById('profile-email');
@@ -40,8 +46,8 @@ export class ProfileUI {
     // Önce cache ile göster
     this._renderStats(userProfile || { totalScore: 0, gamesPlayed: 0, bestScore: 0 });
     this._renderModeStats(null);
-    this._renderOnlineStats(null);
     this._renderHeatmap(user, 'turkey');
+    this._renderOnlineStats(null);
 
     modal.classList.remove('hidden');
 
@@ -63,7 +69,7 @@ export class ProfileUI {
     if (emailEl) emailEl.textContent = '';
     if (avatarEl) avatarEl.textContent = this._getInitials(displayName);
 
-    // Arkadaş Ekle butonu ekle
+    // Arkadaş Ekle butonu
     let actionBtn = document.getElementById('btn-profile-add-friend');
     if (!actionBtn) {
       actionBtn = document.createElement('button');
@@ -72,7 +78,9 @@ export class ProfileUI {
       emailEl?.after(actionBtn);
     }
 
-    if (currentUser && currentUser.uid !== uid && !currentUser.isGuest && friendService) {
+    const isSelf = currentUser && uid && (currentUser.uid === uid);
+
+    if (!isSelf && currentUser && !currentUser.isGuest && friendService) {
       actionBtn.style.display = 'inline-block';
       actionBtn.disabled = true;
       actionBtn.textContent = 'Yükleniyor...';
@@ -131,8 +139,8 @@ export class ProfileUI {
 
     this._renderStats(null);
     this._renderModeStats(null);
-    this._renderOnlineStats(null);
     this._renderHeatmap(uid, 'turkey');
+    this._renderOnlineStats(null);
 
     modal.classList.remove('hidden');
 
@@ -310,6 +318,18 @@ export class ProfileUI {
   }
 
   async _renderHeatmap(user, modeId = 'turkey') {
+    // 1. Devam eden harita veya zamanlayıcı varsa temizle
+    if (this._heatmapTimer) {
+      clearTimeout(this._heatmapTimer);
+      this._heatmapTimer = null;
+    }
+    if (this.heatmapMap) {
+      try {
+        this.heatmapMap.remove();
+      } catch (e) {}
+      this.heatmapMap = null;
+    }
+
     let heatmapSection = document.getElementById('profile-heatmap-section');
     if (!heatmapSection) {
       const modeStatsEl = document.getElementById('profile-mode-stats');
@@ -320,10 +340,10 @@ export class ProfileUI {
       modeStatsEl.after(heatmapSection);
     }
 
-    const items = await this.scoreService.getHeatmapDataAsync(user, modeId);
-    const strongCount = items.filter(i => i.status === 'strong').length;
-    const mediumCount = items.filter(i => i.status === 'medium').length;
-    const weakCount = items.filter(i => i.status === 'weak').length;
+    const items = await this.scoreService.getHeatmapDataAsync(user, modeId).catch(() => []);
+    const strongCount = (items || []).filter(i => i.status === 'strong').length;
+    const mediumCount = (items || []).filter(i => i.status === 'medium').length;
+    const weakCount = (items || []).filter(i => i.status === 'weak').length;
 
     heatmapSection.innerHTML = `
       <h3 class="profile-section-title">🗺️ Performans Isı Haritası (Heatmap)</h3>
@@ -339,7 +359,7 @@ export class ProfileUI {
         <span class="hm-badge weak">🔴 ${weakCount} Zayıf Nokta</span>
       </div>
 
-      <div id="profile-heatmap-map" class="profile-heatmap-map"></div>
+      <div id="profile-heatmap-map" class="profile-heatmap-map" style="height: 240px; min-height: 240px; width: 100%; border-radius: 12px; position: relative; overflow: hidden; background: #0f172a;"></div>
     `;
 
     // Tab tıklama olayları
@@ -350,79 +370,89 @@ export class ProfileUI {
       });
     });
 
-    // Leaflet haritasını yükle (Modal görünür olduktan sonra boyutlandırma yap)
-    setTimeout(() => {
+    // Leaflet haritasını DOM hazır olunca başlat
+    this._heatmapTimer = setTimeout(() => {
+      const mapContainer = document.getElementById('profile-heatmap-map');
+      if (!mapContainer || typeof L === 'undefined') return;
+
+      // Önceki leafleti temizle
       if (this.heatmapMap) {
-        this.heatmapMap.remove();
+        try { this.heatmapMap.remove(); } catch {}
         this.heatmapMap = null;
       }
-
-      const mapContainer = document.getElementById('profile-heatmap-map');
-      if (!mapContainer) return;
+      mapContainer._leaflet_id = null;
 
       const modeConfigs = {
         turkey: { center: [39.0, 35.2], zoom: 5 },
-        world: { center: [20, 0], zoom: 2 },
+        world: { center: [20, 0], zoom: 1 },
         europe: { center: [50.0, 15.0], zoom: 3 },
       };
       const cfg = modeConfigs[modeId] || modeConfigs.turkey;
 
-      const map = L.map('profile-heatmap-map', {
-        center: cfg.center,
-        zoom: cfg.zoom,
-        zoomControl: false,
-        attributionControl: false,
-      });
-      this.heatmapMap = map;
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        maxZoom: 10,
-        crossOrigin: true,
-      }).addTo(map);
-
-      if (items.length === 0) {
-        const infoMsg = document.createElement('div');
-        infoMsg.className = 'hm-empty-overlay';
-        infoMsg.innerHTML = '<span>Henüz bu modda kaydedilmiş maç bulunamadı.<br/>Maç yaptıkça zayıf ve güçlü bölgeleriniz burada haritaya işlenecektir! 🎯</span>';
-        mapContainer.appendChild(infoMsg);
-      } else {
-        items.forEach(item => {
-          const marker = L.circleMarker([item.lat, item.lng], {
-            radius: 8,
-            color: item.color,
-            fillColor: item.color,
-            fillOpacity: 0.85,
-            weight: 2,
-          }).addTo(map);
-
-          const statusText = item.status === 'strong'
-            ? '🟢 Güçlü Bölge'
-            : item.status === 'weak'
-            ? '🔴 Zayıf Nokta'
-            : '🟡 Orta Seviye';
-
-          marker.bindPopup(`
-            <div class="hm-popup">
-              <strong>📍 ${item.name}, ${item.country}</strong><br/>
-              <span>Ortalama Skor: <strong>${item.avgScore} p</strong></span><br/>
-              <span>Ortalama Sapma: <strong>${item.avgDistance} km</strong> (${item.attempts} deneme)</span><br/>
-              <span style="color:${item.color}; font-weight:700;">${statusText}</span>
-            </div>
-          `, { closeButton: false });
+      try {
+        const map = L.map(mapContainer, {
+          center: cfg.center,
+          zoom: cfg.zoom,
+          zoomControl: false,
+          attributionControl: false,
         });
-      }
+        this.heatmapMap = map;
 
-      // Modal animasyonu tamamlana kadar invalidateSize çağrılarını zamanla
-      map.invalidateSize();
-      setTimeout(() => map.invalidateSize(), 200);
-      setTimeout(() => map.invalidateSize(), 500);
-    }, 150);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+          subdomains: 'abcd',
+          maxZoom: 10,
+          crossOrigin: true,
+        }).addTo(map);
+
+        if (!items || items.length === 0) {
+          const infoMsg = document.createElement('div');
+          infoMsg.className = 'hm-empty-overlay';
+          infoMsg.innerHTML = '<span>Henüz bu modda kayıtlı maç bulunamadı.<br/>Maç yaptıkça zayıf ve güçlü bölgeleriniz burada haritaya işlenecektir! 🎯</span>';
+          mapContainer.appendChild(infoMsg);
+        } else {
+          items.forEach(item => {
+            const marker = L.circleMarker([item.lat, item.lng], {
+              radius: 8,
+              color: item.color,
+              fillColor: item.color,
+              fillOpacity: 0.85,
+              weight: 2,
+            }).addTo(map);
+
+            const statusText = item.status === 'strong'
+              ? '🟢 Güçlü Bölge'
+              : item.status === 'weak'
+              ? '🔴 Zayıf Nokta'
+              : '🟡 Orta Seviye';
+
+            marker.bindPopup(`
+              <div class="hm-popup">
+                <strong>📍 ${item.name}, ${item.country}</strong><br/>
+                <span>Ortalama Skor: <strong>${item.avgScore} p</strong></span><br/>
+                <span>Ortalama Sapma: <strong>${item.avgDistance} km</strong> (${item.attempts} deneme)</span><br/>
+                <span style="color:${item.color}; font-weight:700;">${statusText}</span>
+              </div>
+            `, { closeButton: false });
+          });
+        }
+
+        // Harita boyutunu modal animasyonundan sonra tazeleyin
+        map.invalidateSize();
+        setTimeout(() => map.invalidateSize(), 150);
+        setTimeout(() => map.invalidateSize(), 400);
+      } catch (err) {
+        console.warn('[ProfileUI] Heatmap render error:', err);
+      }
+    }, 100);
   }
 
   hide() {
+    if (this._heatmapTimer) {
+      clearTimeout(this._heatmapTimer);
+      this._heatmapTimer = null;
+    }
     if (this.heatmapMap) {
-      this.heatmapMap.remove();
+      try { this.heatmapMap.remove(); } catch {}
       this.heatmapMap = null;
     }
     document.getElementById('profile-modal')?.classList.add('hidden');
