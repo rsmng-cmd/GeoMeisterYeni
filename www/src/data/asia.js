@@ -1,0 +1,17 @@
+﻿export default [
+  { name: 'Tokyo', country: '', lat: 35.6762, lng: 139.6503, population: 14000000 },
+  { name: 'Pekin', country: '', lat: 39.9042, lng: 116.4074, population: 21500000 },
+  { name: 'Şanghay', country: '', lat: 31.2304, lng: 121.4737, population: 26000000 },
+  { name: 'Seul', country: '', lat: 37.5665, lng: 126.9780, population: 9700000 },
+  { name: 'Yeni Delhi', country: '', lat: 28.6139, lng: 77.2090, population: 31000000 },
+  { name: 'Mumbai', country: '', lat: 19.0760, lng: 72.8777, population: 20000000 },
+  { name: 'Bangkok', country: '', lat: 13.7563, lng: 100.5018, population: 10500000 },
+  { name: 'Singapur', country: '', lat: 1.3521, lng: 103.8198, population: 5700000 },
+  { name: 'Cakarta', country: '', lat: -6.2088, lng: 106.8456, population: 10500000 },
+  { name: 'Kuala Lumpur', country: '', lat: 3.1390, lng: 101.6869, population: 1800000 },
+  { name: 'Manila', country: '', lat: 14.5995, lng: 120.9842, population: 13900000 },
+  { name: 'Hanoi', country: '', lat: 21.0285, lng: 105.8542, population: 8000000 },
+  { name: 'Riyad', country: '', lat: 24.7136, lng: 46.6753, population: 7600000 },
+  { name: 'Dubai', country: '', lat: 25.2048, lng: 55.2708, population: 3300000 },
+  { name: 'İslamabad', country: '', lat: 33.6844, lng: 73.0479, population: 1200000 },
+];

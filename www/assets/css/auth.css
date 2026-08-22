@@ -1,0 +1,170 @@
+/* auth.css — GeoMeister Auth Ekranı */
+
+#auth-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  background: radial-gradient(ellipse at 30% 20%, rgba(99,102,241,0.15) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(99,102,241,0.08) 0%, transparent 60%),
+              var(--color-bg-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animated dot grid background */
+#auth-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: bgScroll 25s linear infinite;
+  z-index: 0;
+}
+
+@keyframes bgScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 40px 40px; }
+}
+
+/* Floating particles */
+.auth-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-accent-glow), transparent);
+  pointer-events: none;
+  animation: floatParticle linear infinite;
+  z-index: 0;
+}
+.auth-particle:nth-child(1) { width:300px; height:300px; top:-10%; left:-5%;  animation-duration:18s; opacity:0.3; }
+.auth-particle:nth-child(2) { width:200px; height:200px; top:60%; right:-5%; animation-duration:22s; opacity:0.2; }
+.auth-particle:nth-child(3) { width:150px; height:150px; top:30%; left:60%;  animation-duration:15s; opacity:0.15; }
+.auth-particle:nth-child(4) { width:100px; height:100px; top:80%; left:20%;  animation-duration:20s; opacity:0.2; }
+.auth-particle:nth-child(5) { width:250px; height:250px; top:10%; right:15%; animation-duration:25s; opacity:0.1; }
+
+@keyframes floatParticle {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-30px) scale(1.05); }
+}
+
+/* Auth Card */
+.auth-container {
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-2xl);
+  position: relative;
+  z-index: var(--z-elevated);
+  animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  background: rgba(15, 22, 41, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+}
+
+/* Logo Area */
+.auth-logo {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.auth-logo-icon {
+  font-size: 3.5rem;
+  display: block;
+  margin-bottom: var(--space-sm);
+  animation: pulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(99,102,241,0.5));
+}
+
+.auth-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff 0%, var(--color-accent-hover) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-xs);
+}
+
+.auth-subtitle {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Tabs */
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--space-lg);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 4px;
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  color: #cbd5e1;
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: calc(var(--radius-md) - 2px);
+  transition: all var(--transition-normal);
+}
+
+.auth-tab.active {
+  background: var(--color-accent);
+  color: #ffffff;
+  box-shadow: var(--shadow-glow);
+}
+
+/* Forms */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  animation: fadeIn 0.25s ease;
+}
+
+.auth-form.hidden { display: none; }
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.input-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.btn-full { width: 100%; padding: var(--space-md); font-size: 1rem; font-weight: 700; }
+
+.auth-error {
+  color: #fca5a5;
+  font-size: 0.85rem;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(239,68,68,0.2);
+  border: 1px solid rgba(239,68,68,0.5);
+  border-radius: var(--radius-md);
+}
+.auth-error.hidden { display: none; }
+
+.auth-success {
+  color: #34d399;
+  font-size: 0.85rem;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(52,211,153,0.1);
+  border: 1px solid rgba(52,211,153,0.3);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.3s ease;
+}
+.auth-success.hidden { display: none; }

@@ -1,0 +1,426 @@
+/* friends-panel.css — Sağdan Kayan Arkadaş Paneli */
+
+/* ═══ Slide Panel Container ═══ */
+#friends-slide-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100vh;
+  z-index: 9999;
+  background: rgba(10, 14, 26, 0.98);
+  border-left: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#friends-slide-panel.open {
+  transform: translateX(0);
+}
+
+/* Panel Backdrop */
+#friends-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+#friends-panel-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ═══ Panel Header ═══ */
+.fp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.fp-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fp-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.fp-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+/* ═══ Panel Body (Scrollable) ═══ */
+.fp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fp-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.fp-body::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+/* ═══ Search Box ═══ */
+.fp-search-box {
+  display: flex;
+  gap: 8px;
+}
+
+.fp-search-box input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #f8fafc;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.fp-search-box input::placeholder {
+  color: #64748b;
+}
+
+.fp-search-box input:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.fp-search-btn {
+  background: var(--color-accent, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.fp-search-btn:hover {
+  background: var(--color-accent-hover, #818cf8);
+}
+
+.fp-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* ═══ Section Titles ═══ */
+.fp-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fp-section-title .count {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ═══ Friend Card ═══ */
+.fp-friend-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.fp-friend-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.fp-friend-card.online {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+/* Avatar with status dot */
+.fp-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.fp-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.fp-status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 14, 26, 0.98);
+}
+
+.fp-status-dot.online {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: presencePulse 2s infinite;
+}
+
+.fp-status-dot.offline {
+  background: #475569;
+}
+
+@keyframes presencePulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.7); }
+}
+
+/* Friend info */
+.fp-friend-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.fp-friend-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fp-friend-activity {
+  font-size: 0.72rem;
+  color: #10b981;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fp-friend-activity.offline {
+  color: #64748b;
+}
+
+/* Friend actions */
+.fp-friend-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.fp-invite-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.fp-invite-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
+}
+
+.fp-invite-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.fp-remove-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.fp-remove-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ═══ Pending Requests ═══ */
+.fp-pending-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fp-pending-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 10px;
+}
+
+.fp-pending-name {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.fp-pending-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.fp-accept-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fp-accept-btn:hover {
+  background: #059669;
+}
+
+.fp-decline-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fp-decline-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* ═══ Search Result Item ═══ */
+.fp-search-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.fp-search-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.fp-search-name {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ═══ Empty States ═══ */
+.fp-empty {
+  text-align: center;
+  padding: 20px 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.fp-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 6px;
+}
+
+/* ═══ Responsive — Mobile ═══ */
+@media (max-width: 640px) {
+  #friends-slide-panel {
+    width: 100%;
+  }
+}

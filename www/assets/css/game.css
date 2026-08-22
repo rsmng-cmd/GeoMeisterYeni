@@ -1,0 +1,927 @@
+/* game.css — GeoMeister Oyun Ekranı */
+
+#game-screen {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  height: 100dvh;
+  height: 100vh;
+  height: 100%;
+  width: 100vw;
+  width: 100%;
+  overflow: hidden;
+  z-index: 50;
+}
+
+/* ─── Map (Tam Ekran) ────────────────────────── */
+#map-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-base);
+  cursor: crosshair;
+}
+
+/* Leaflet Map Theme — Canlı Berrak Sular, Yüksek Kontrastlı Karalar */
+.leaflet-container {
+  background: #152d4a !important; /* Canlı derin deniz mavisi taban (siyah görünmeyi önler) */
+  font-family: 'Inter', sans-serif;
+}
+
+/* GPU Donanım İvmesi — 60 FPS Yağ Gibi Akıcı Zoom & Sürükleme */
+.leaflet-tile,
+.leaflet-tile-container,
+.leaflet-zoom-animated,
+.leaflet-map-pane {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Innovator TIP 3: Harita Çizgi Animasyonu (Dashing Flow) */
+.animated-dash-line {
+  stroke-dasharray: 10, 8;
+  animation: dashFlow 1.2s linear infinite;
+}
+
+@keyframes dashFlow {
+  from {
+    stroke-dashoffset: 36;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Standart / Aydınlık Mod: Koyu gri karalar ve net ayrıştırılmış sular */
+[data-theme="light"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(1.2) brightness(4.2) contrast(1.1) !important;
+}
+
+[data-theme="light"] .leaflet-container {
+  background: #2d3748 !important;
+}
+
+/* Koyu Mod: Sular çok daha açık berrak turkuaz-mavi, karalar koyu belirgin */
+[data-theme="dark"] .leaflet-tile-pane,
+:root:not([data-theme="light"]) .leaflet-tile-pane {
+  filter: invert(92%) hue-rotate(185deg) brightness(1.35) contrast(1.25) saturate(2.1) !important;
+}
+
+:root:not([data-theme="light"]) .leaflet-container {
+  background: #0f2744 !important;
+}
+.leaflet-control-zoom {
+  margin-top: 90px !important; /* Top bar'ın altında kalmasın */
+}
+.leaflet-control-zoom a {
+  background: rgba(15,22,41,0.9) !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  backdrop-filter: blur(8px);
+}
+.leaflet-control-zoom a:hover {
+  background: var(--color-bg-tertiary) !important;
+  color: var(--color-accent) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(10,14,26,0.7) !important;
+  color: var(--color-text-muted) !important;
+  backdrop-filter: blur(4px);
+  font-size: 10px !important;
+}
+.leaflet-popup-content-wrapper {
+  background: rgba(15,22,41,0.95) !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg) !important;
+}
+.leaflet-popup-tip { background: rgba(15,22,41,0.95) !important; }
+
+/* Custom Markers */
+.map-marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  animation: markerPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes markerPop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.guess-marker {
+  background: #ef4444;
+  border: 3px solid white;
+  box-shadow: 0 4px 15px rgba(239,68,68,0.5), var(--shadow-md);
+  color: white;
+}
+
+.answer-marker {
+  background: #10b981;
+  border: 3px solid white;
+  box-shadow: 0 4px 15px rgba(16,185,129,0.5), var(--shadow-md);
+  color: white;
+}
+
+.map-popup { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.85rem; }
+
+/* ─── Top Bar Header (Üst Bar) ───────────────── */
+/* ─── Top Bar Header (Üst Bar) ───────────────── */
+.game-top-bar {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: max(12px, env(safe-area-inset-left, 12px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  z-index: 5000; /* Leaflet ve harita elemanlarının üstünde kalmasını garanti et */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 10px 20px;
+  background: rgba(15, 22, 41, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.2);
+  box-sizing: border-box;
+}
+
+.offline-timer-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-left: 4px;
+}
+
+.timer-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #38bdf8;
+  min-width: 28px;
+}
+
+.offline-timer-track {
+  width: 60px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.offline-timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  border-radius: 4px;
+  transition: width 0.1s linear, background-color 0.3s ease;
+}
+
+.offline-timer-fill.warning {
+  background: linear-gradient(90deg, #ef4444, #f97316) !important;
+}
+
+.game-top-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+
+.game-panel-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.game-top-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0; /* Flex sıkışmasında yazının gizlenmesini/sığmasını sağlar */
+  max-width: 520px;
+}
+
+.game-question {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+  padding: 6px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.question-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.question-city {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #38bdf8;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  text-align: center;
+  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.question-country {
+  font-size: 0.85rem;
+  color: #818cf8;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+[data-theme="light"] .game-top-bar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme="light"] .game-question {
+  background: rgba(241, 245, 249, 0.95) !important;
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+[data-theme="light"] .question-city {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+[data-theme="light"] .question-label {
+  color: #64748b !important;
+}
+
+.game-progress {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.progress-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover));
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+
+.round-counter {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.game-top-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 160px;
+  justify-content: flex-end;
+}
+
+.btn-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 6px 14px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  white-space: nowrap;
+}
+
+.btn-hint:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-hint:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.game-score-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.score-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.score-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+/* ─── Hint (Alt Orta) ────────────────────────── */
+.click-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-elevated);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 18px;
+  background: rgba(15, 22, 41, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@media (max-width: 480px) {
+  .click-hint {
+    bottom: 75px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    opacity: 0.9;
+  }
+}
+.click-hint.hidden { display: none; }
+.hint-icon { font-size: 1rem; }
+
+/* ─── Tur Sonucu Açılır Kartı (Sağ Alt Yüzen Kart) ─── */
+.round-result-modal {
+  position: absolute;
+  bottom: 28px;
+  right: 28px;
+  z-index: var(--z-modal);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none;
+  padding: 0;
+  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.round-result-modal.hidden { display: none; }
+
+.round-result-card {
+  width: 320px;
+  padding: var(--space-lg);
+  background: rgba(15, 22, 41, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 24px rgba(99,102,241,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  pointer-events: auto;
+}
+
+/* ─── Seviye Bitti Açılır Penceresi (Tam Ekran Ortası) ─── */
+.level-complete-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  background: rgba(5, 8, 20, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: var(--space-lg);
+  animation: fadeIn 0.25s ease;
+}
+
+.level-complete-modal.hidden { display: none; }
+
+.level-complete-card {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-xl);
+  background: rgba(15, 22, 41, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.7), 0 0 30px rgba(99,102,241,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.result-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.result-score {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--color-score-perfect);
+  letter-spacing: -0.02em;
+}
+
+.result-distance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--radius-lg);
+  justify-content: center;
+}
+
+/* Level Complete Modal İçeriği */
+.level-complete-header {
+  text-align: center;
+}
+
+.level-complete-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-xs);
+}
+
+.level-complete-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.level-complete-stats {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.lc-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.lc-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+.lc-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.level-complete-msg {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.level-complete-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.round-result-panel.tier-perfect { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.06); }
+.round-result-panel.tier-good    { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.06); }
+.round-result-panel.tier-okay    { border-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.06); }
+.round-result-panel.tier-bad     { border-color: rgba(239,68,68,0.4);  background: rgba(239,68,68,0.06); }
+
+.result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.result-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.result-score {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--color-score-perfect);
+  letter-spacing: -0.02em;
+}
+.tier-bad .result-score   { color: var(--color-score-bad); }
+.tier-okay .result-score  { color: var(--color-accent); }
+.tier-good .result-score  { color: var(--color-score-good); }
+.tier-perfect .result-score { color: var(--color-score-perfect); }
+
+.result-distance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+#next-btn { width: 100%; padding: var(--space-md); font-size: 0.95rem; font-weight: 700; }
+
+/* ─── Game Over Overlay ───────────────────────── */
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5,8,20,0.88);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  animation: fadeIn 0.4s ease;
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+.game-over-overlay.hidden { display: none; }
+
+.game-over-card {
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-2xl);
+  animation: scaleIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  background: rgba(15,22,41,0.95);
+  border: 1px solid rgba(99,102,241,0.3);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.6), var(--shadow-glow);
+}
+
+.game-over-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.game-over-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-xs);
+}
+
+.game-over-mode {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.final-stats {
+  display: flex;
+  gap: var(--space-lg);
+  justify-content: center;
+  margin-bottom: var(--space-xl);
+}
+
+.final-stat-main, .final-stat-secondary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg) var(--space-xl);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  flex: 1;
+}
+
+.final-stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  letter-spacing: -0.03em;
+}
+
+.final-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.final-message {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-md);
+}
+
+/* Score Breakdown */
+.score-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-xl);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.03);
+  font-size: 0.85rem;
+  border-left: 3px solid transparent;
+}
+.breakdown-row.tier-perfect { border-left-color: var(--color-score-perfect); }
+.breakdown-row.tier-good    { border-left-color: var(--color-score-good); }
+.breakdown-row.tier-okay    { border-left-color: var(--color-accent); }
+.breakdown-row.tier-bad     { border-left-color: var(--color-score-bad); }
+
+.breakdown-num  { color: var(--color-text-muted); font-weight: 600; width: 20px; flex-shrink: 0; }
+.breakdown-city { flex: 1; color: var(--color-text-primary); font-weight: 500; }
+.breakdown-dist { color: var(--color-text-secondary); font-size: 0.8rem; flex-shrink: 0; }
+.breakdown-score { font-weight: 700; color: var(--color-accent); flex-shrink: 0; min-width: 50px; text-align: right; }
+
+.game-over-actions {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.game-over-actions .btn-primary,
+.game-over-actions .btn-secondary {
+  flex: 1;
+  padding: var(--space-md);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Animation */
+.animate-in { animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Mobile & Responsive Media Queries — Sorunun Her Ekran Boyutunda Tam Görünmesi */
+@media (max-width: 768px) {
+  .game-top-bar {
+    top: max(6px, env(safe-area-inset-top, 6px));
+    left: 6px;
+    right: 6px;
+    padding: 8px 10px;
+    gap: 6px;
+    border-radius: var(--radius-lg);
+  }
+
+  .game-panel-title {
+    display: none; /* Mobilde yer kazanmak için başlığı gizle */
+  }
+
+  .game-top-left {
+    min-width: auto;
+    gap: 4px;
+  }
+
+  .offline-timer-track {
+    width: 40px;
+  }
+
+  .game-top-center {
+    max-width: none;
+    gap: 2px;
+  }
+
+  .game-question {
+    padding: 4px 10px;
+    border-radius: 10px;
+  }
+
+  .question-label {
+    display: none; /* Mobilde "Bu şehri bul:" etiketini gizle, sadece şehir adına odaklan */
+  }
+
+  .question-city {
+    font-size: 1.1rem;
+  }
+
+  .question-country {
+    font-size: 0.8rem;
+  }
+
+  .game-progress {
+    max-width: 200px;
+  }
+
+  .round-counter {
+    font-size: 0.7rem;
+  }
+
+  .game-top-right {
+    min-width: auto;
+    gap: 6px;
+  }
+
+  .btn-hint {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  .score-label {
+    display: none; /* Mobilde "Toplam Puan" yazısını gizle, sadece skoru tut */
+  }
+
+  .score-value {
+    font-size: 1rem;
+  }
+
+  .leaflet-control-zoom {
+    margin-top: 70px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-top-bar {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .question-city {
+    font-size: 1rem;
+  }
+
+  .offline-timer-box {
+    padding: 2px 6px;
+    margin-left: 2px;
+  }
+
+  .offline-timer-track {
+    display: none; /* Çok dar ekranlarda çizkiyi gizle, sadece '12s' kalsın */
+  }
+
+  .game-progress {
+    max-width: 140px;
+  }
+}
+
+/* Mobile Landscape (Yan Ekran) Responsive Düzenlemeleri */
+@media (max-height: 520px), (orientation: landscape) and (max-width: 960px) {
+  .game-top-bar {
+    top: 4px;
+    left: 6px;
+    right: 6px;
+    padding: 4px 10px;
+    gap: 4px;
+    border-radius: var(--radius-lg);
+    background: rgba(15, 22, 41, 0.94);
+  }
+
+  .game-top-left {
+    min-width: auto;
+  }
+
+  .game-panel-title {
+    display: none;
+  }
+
+  .game-top-center {
+    max-width: none;
+    gap: 2px;
+  }
+
+  .question-city {
+    font-size: 1rem;
+  }
+
+  .question-country {
+    font-size: 0.75rem;
+  }
+
+  .game-progress {
+    max-width: 180px;
+  }
+
+  .game-top-right {
+    min-width: auto;
+    gap: 4px;
+  }
+
+  .btn-hint {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  .game-score-box {
+    padding: 2px 8px;
+  }
+
+  .score-label {
+    display: none;
+  }
+
+  .score-value {
+    font-size: 0.95rem;
+  }
+
+  .leaflet-control-zoom {
+    margin-top: 50px !important;
+  }
+
+  /* Modallar Yan Ekranda Taşmasın */
+  .round-result-modal,
+  .level-complete-modal {
+    max-height: 94vh;
+    padding: 12px 16px;
+    overflow-y: auto;
+  }
+
+  .lc-icon {
+    font-size: 2.5rem;
+    margin-bottom: 4px;
+  }
+
+  .lc-title {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+  }
+
+  .lc-score-card {
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+}

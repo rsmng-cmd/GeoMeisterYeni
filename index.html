@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>GeoMeister – Dünya Şehir Tahmin Oyunu</title>
+  <meta name="description" content="Dünya haritası üzerinde şehirleri tahmin et, puanını artır ve liderlik tablosunda yerine yüksel!" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="assets/css/variables.css" />
+  <link rel="stylesheet" href="assets/css/base.css" />
+  <link rel="stylesheet" href="assets/css/auth.css" />
+  <link rel="stylesheet" href="assets/css/home.css" />
+  <link rel="stylesheet" href="assets/css/game.css" />
+  <link rel="stylesheet" href="assets/css/online.css" />
+  <link rel="stylesheet" href="assets/css/leaderboard.css" />
+  <link rel="stylesheet" href="assets/css/profile.css" />
+  <link rel="stylesheet" href="assets/css/settings.css" />
+  <link rel="stylesheet" href="assets/css/friends.css" />
+  <link rel="stylesheet" href="assets/css/friends-panel.css" />
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════
+       AUTH SCREEN
+  ════════════════════════════════════════ -->
+  <div id="auth-screen">
+    <!-- Animasyonlu arka plan partikülleri -->
+    <div class="auth-bg">
+      <div class="auth-particle"></div>
+      <div class="auth-particle"></div>
+      <div class="auth-particle"></div>
+      <div class="auth-particle"></div>
+      <div class="auth-particle"></div>
+    </div>
+
+    <div class="auth-container panel">
+      <!-- Logo -->
+      <div class="auth-logo">
+        <div class="auth-logo-icon">🌍</div>
+        <h1 class="auth-title">GeoMeister</h1>
+        <p class="auth-subtitle">Dünyayı keşfet, şehirleri tahmin et</p>
+      </div>
+
+      <!-- Tab Seçici -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login" id="tab-login">Giriş Yap</button>
+        <button class="auth-tab" data-tab="register" id="tab-register">Kayıt Ol</button>
+      </div>
+
+      <!-- Giriş Formu -->
+      <form class="auth-form" data-form="login" id="login-form" action="javascript:void(0);">
+        <div class="input-group">
+          <label for="login-email">E-posta</label>
+          <input type="email" id="login-email" class="input-field" placeholder="ornek@email.com" required autocomplete="email" />
+        </div>
+        <div class="input-group">
+          <label for="login-password">Şifre</label>
+          <input type="password" id="login-password" class="input-field" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <p id="login-error" class="auth-error hidden"></p>
+        <p id="login-success" class="auth-success hidden"></p>
+        <button type="button" id="login-btn" class="btn-primary btn-full" data-label="Giriş Yap">Giriş Yap</button>
+      </form>
+
+      <!-- Kayıt Formu -->
+      <form class="auth-form hidden" data-form="register" id="register-form" action="javascript:void(0);">
+        <div class="input-group">
+          <label for="register-name">Kullanıcı Adı</label>
+          <input type="text" id="register-name" class="input-field" placeholder="Adın" required minlength="2" autocomplete="name" />
+        </div>
+        <div class="input-group">
+          <label for="register-email">E-posta</label>
+          <input type="email" id="register-email" class="input-field" placeholder="ornek@email.com" required autocomplete="email" />
+        </div>
+        <div class="input-group">
+          <label for="register-password">Şifre</label>
+          <input type="password" id="register-password" class="input-field" placeholder="En az 6 karakter" required minlength="6" autocomplete="new-password" />
+        </div>
+        <div class="input-group">
+          <label for="register-confirm">Şifre Tekrar</label>
+          <input type="password" id="register-confirm" class="input-field" placeholder="Şifreni tekrar gir" required autocomplete="new-password" />
+        </div>
+        <p id="register-error" class="auth-error hidden"></p>
+        <p id="register-success" class="auth-success hidden"></p>
+        <button type="button" id="register-btn" class="btn-primary btn-full" data-label="Kayıt Ol">Kayıt Ol</button>
+      </form>
+
+      <!-- Misafir Girişi -->
+      <div class="auth-divider">
+        <span>veya</span>
+      </div>
+      <button id="guest-btn" class="btn-ghost btn-full btn-guest">
+        👤 Misafir olarak devam et
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       HOME SCREEN
+  ════════════════════════════════════════ -->
+  <div id="home-screen" class="hidden">
+    <!-- Üst Bar -->
+    <header class="home-header">
+      <div class="home-logo">
+        <span class="home-logo-icon">🌍</span>
+        <span class="home-logo-text">GeoMeister</span>
+      </div>
+      <div class="home-header-right">
+        <div class="user-info">
+          <span class="user-name" id="user-display-name">Oyuncu</span>
+          <div class="user-avatar" id="user-avatar" title="Profili Görüntüle">?</div>
+        </div>
+        <button class="btn-ghost btn-friends-header" id="friends-btn" title="Arkadaşlar & Oyuncu Ara" style="position: relative;">
+          👥
+          <span id="friends-badge" class="friends-badge-count hidden">0</span>
+        </button>
+        <button class="btn-ghost" id="fullscreen-btn" title="Tam Ekran Modu (Bildirim ve Gezinme Çubuğunu Gizler)">⛶</button>
+        <button class="btn-ghost" id="leaderboard-btn" title="Liderlik Tablosu">🏆</button>
+        <button class="btn-ghost" id="settings-btn" title="Ayarlar">⚙️</button>
+        <button class="btn-ghost" id="logout-btn" title="Çıkış Yap">⎋</button>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <div class="home-hero">
+      <h2 class="home-hero-title">Mod Seç</h2>
+      <p class="home-hero-sub">Bir bölge seç ve şehirleri tahmin etmeye başla</p>
+    </div>
+
+    <!-- Mod Kartları -->
+    <main class="home-main">
+      <div class="modes-grid" id="modes-grid">
+        <!-- HomeUI.js tarafından dinamik olarak render edilir -->
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       LEVEL SELECT SCREEN
+  ════════════════════════════════════════ -->
+  <div id="level-select-screen" class="hidden">
+    <header class="home-header">
+      <div class="home-logo">
+        <button class="btn-ghost" id="level-select-back-btn">← Mod Seçimi</button>
+      </div>
+      <div class="home-logo-text" id="level-select-title">🗺️ Seviye Seçimi</div>
+      <div></div>
+    </header>
+
+    <div class="level-select-hero">
+      <h2 class="home-hero-title">Seviye Seç</h2>
+      <p class="home-hero-sub">Seviyeleri tamamlayarak yeni aşamaların kilidini aç!</p>
+    </div>
+
+    <main class="home-main">
+      <div class="levels-grid" id="levels-grid">
+        <!-- LevelSelectUI.js tarafından render edilir -->
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       GAME SCREEN
+  ════════════════════════════════════════ -->
+  <div id="game-screen" class="hidden">
+    <!-- Harita (Tam Ekran) -->
+    <div id="map-container"></div>
+
+    <!-- Üst Bar Header (Mevcut Soru, İlerleme ve Skor Üstte) -->
+    <header class="game-top-bar">
+      <div class="game-top-left">
+        <button class="btn-ghost btn-icon" id="home-from-game-btn" title="Ana Sayfaya Dön">←</button>
+        <span class="game-panel-title">🌍 GeoMeister</span>
+        <div class="offline-timer-box" id="offline-timer-box">
+          <span class="timer-icon">⏱️</span>
+          <span class="timer-text" id="offline-timer-text">12s</span>
+          <div class="offline-timer-track">
+            <div class="offline-timer-fill" id="offline-timer-fill" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="game-top-center">
+        <div class="game-question">
+          <span class="question-label">Bu şehri bul:</span>
+          <h2 class="question-city" id="question-city">—</h2>
+          <span class="question-country" id="question-country">—</span>
+        </div>
+        <div class="game-progress">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="round-progress-bar" style="width: 0%"></div>
+          </div>
+          <span class="round-counter" id="round-counter">0 / 10</span>
+        </div>
+      </div>
+
+      <div class="game-top-right">
+        <button id="hint-btn" class="btn-hint" title="Bölge İpucu">💡 İpucu (1/1)</button>
+        <div class="game-score-box">
+          <span class="score-label">Toplam Puan</span>
+          <span class="score-value" id="total-score">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tıklama İpucu (Alt Orta) -->
+    <div class="click-hint" id="click-hint">
+      <span class="hint-icon">👆</span>
+      <span>Haritaya tıklayarak tahmin et</span>
+    </div>
+
+    <!-- Ortada Çıkan Tur Sonuç Açılır Penceresi -->
+    <div class="round-result-modal hidden" id="round-result-panel">
+      <div class="round-result-card panel">
+        <div class="result-top">
+          <span class="result-label">Tur Sonucu</span>
+          <span class="result-score" id="result-score">+0</span>
+        </div>
+        <div class="result-distance">
+          <span class="distance-icon">📏</span>
+          <span id="result-distance">— km</span>
+        </div>
+        <button class="btn-primary btn-full" id="next-btn">Sonraki Soru →</button>
+      </div>
+    </div>
+
+    <!-- Ortada Çıkan Seviye Bitti Açılır Penceresi -->
+    <div class="level-complete-modal hidden" id="level-complete-panel">
+      <div class="level-complete-card panel">
+        <div class="level-complete-header">
+          <div class="level-complete-icon" id="level-complete-icon">🎉</div>
+          <h3 class="level-complete-title" id="level-complete-title">Seviye Geçildi!</h3>
+        </div>
+        <div class="level-complete-stats">
+          <div class="lc-stat">
+            <span class="lc-stat-value" id="lc-total-score">0</span>
+            <span class="lc-stat-label" id="lc-total-label">Puanınız</span>
+          </div>
+          <div class="lc-stat">
+            <span class="lc-stat-value" id="lc-target-score">0</span>
+            <span class="lc-stat-label" id="lc-target-label">Hedef Puan</span>
+          </div>
+        </div>
+        <p class="level-complete-msg" id="level-complete-msg"></p>
+        <div class="level-complete-actions">
+          <button class="btn-primary btn-full" id="next-level-btn">Sonraki Seviye 🚀</button>
+          <button class="btn-secondary btn-full" id="home-from-level-btn">Ana Menü 🏠</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       LEADERBOARD SCREEN
+  ════════════════════════════════════════ -->
+  <div id="leaderboard-screen" class="hidden">
+    <div class="leaderboard-container">
+      <div class="leaderboard-header">
+        <button class="btn-ghost btn-icon" id="leaderboard-back-btn">← Geri</button>
+        <h2 class="leaderboard-title">🏆 Liderlik Tablosu</h2>
+        <div class="leaderboard-mode-tabs" id="leaderboard-mode-tabs">
+          <!-- LeaderboardUI.js tarafından render edilir -->
+        </div>
+      </div>
+
+      <div class="leaderboard-table-wrapper panel">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Oyuncu</th>
+              <th>Puan</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <!-- LeaderboardUI.js tarafından doldurulur -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PROFILE MODAL
+  ════════════════════════════════════════ -->
+  <div id="profile-modal" class="hidden">
+    <div class="profile-backdrop" id="profile-backdrop"></div>
+    <div class="profile-card panel">
+      <div class="profile-header">
+        <div class="profile-avatar" id="profile-avatar">?</div>
+        <h2 class="profile-name" id="profile-name">Oyuncu</h2>
+        <p class="profile-email" id="profile-email"></p>
+      </div>
+      <div class="profile-stats-grid" id="profile-stats-grid">
+        <!-- ProfileUI.js tarafından doldurulur -->
+      </div>
+      <div class="profile-mode-stats" id="profile-mode-stats">
+        <!-- Mod bazlı istatistikler -->
+      </div>
+      <button class="btn-secondary btn-full" id="profile-close-btn">Kapat</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ONLINE HUB MODAL
+  ════════════════════════════════════════ -->
+  <div id="online-hub-modal" class="modal-backdrop hidden">
+    <div class="online-modal-card">
+      <button id="btn-close-online-modal" class="btn-close-modal">✕</button>
+      
+      <div class="online-header">
+        <h2 class="online-title">🌐 GeoMeister Online</h2>
+        <p class="online-subtitle">Rakiplerinle kapış, ELO puanı kazan ve rütbeni yükselt!</p>
+      </div>
+
+      <!-- Mod Seçimi (Dünya / Avrupa / Türkiye / Afrika) -->
+      <div class="online-mode-selector">
+        <button class="online-mode-tab active" data-mode="world">🌍 Dünya</button>
+        <button class="online-mode-tab" data-mode="europe">🇪🇺 Avrupa</button>
+        <button class="online-mode-tab" data-mode="turkey">🇹🇷 Türkiye</button>
+        <button class="online-mode-tab" data-mode="africa">🦁 Afrika</button>
+      </div>
+
+      <!-- Oyuncu ELO & Rütbe Kartı -->
+      <div id="online-user-rank-card" class="user-rank-card">
+        <div class="rank-badge-icon">❓</div>
+        <div class="rank-info">
+          <div class="rank-name" style="color: #94a3b8">Yerleşme Aşamasında (0/5)</div>
+          <div class="rank-elo-details">5 Yerleşme Maçından 0'ı Tamamlandı</div>
+        </div>
+      </div>
+
+      <!-- Ana Eylemler (1v1 Matchmaking & Özel Oda) -->
+      <div class="online-actions-grid">
+        <div class="online-action-card primary" id="card-start-matchmaking">
+          <div class="action-icon">⚔️</div>
+          <div class="action-title">1v1 Hızlı Eşleşme</div>
+          <div class="action-desc">Kendi seviyendeki oyuncularla 1v1 rekabet et</div>
+          <button class="btn btn-primary btn-full mt-auto" id="btn-search-match">Hızlı Maç Ara</button>
+        </div>
+
+        <div class="online-action-card secondary">
+          <div class="action-icon">🏠</div>
+          <div class="action-title">Özel Oda</div>
+          <div class="action-desc">Arkadaşlarınla 5 kişiye kadar özel maç yap</div>
+          <div class="room-action-buttons">
+            <button class="btn btn-secondary" id="btn-create-room">Oda Kur</button>
+            <button class="btn btn-outline" id="btn-open-join-input">Odaya Katıl</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eşleşme Arama Animasyon Ekranı -->
+      <div id="matchmaking-search-overlay" class="search-overlay hidden">
+        <div class="spinner-pulse"></div>
+        <div class="search-title">Rakip Aranıyor...</div>
+        <div id="search-status-text" class="search-status">±20 ELO yakınlığında oyuncu aranıyor [0s]</div>
+        <button id="btn-cancel-search" class="btn btn-outline btn-sm mt-md">Aramayı İptal Et</button>
+      </div>
+
+      <!-- Odaya Katılma Kod Girdisi -->
+      <div id="join-room-container" class="join-room-box hidden mt-md">
+        <input type="text" id="input-room-code" placeholder="Oda Kodu (Örn: GEO-8492)" maxlength="8" class="input-room-code" />
+        <button id="btn-join-room-submit" class="btn btn-primary">Katıl</button>
+      </div>
+
+      <!-- Özel Oda Lobisi -->
+      <div id="room-lobby-overlay" class="room-lobby-box hidden">
+        <div class="lobby-header">
+          <h3>Özel Oda Lobisi</h3>
+          <div id="lobby-code-display" class="lobby-code-badge">GEO-XXXX</div>
+        </div>
+        <div class="lobby-players-list" id="lobby-players-list">
+          <!-- Oyuncular buraya gelecek -->
+        </div>
+        <div class="lobby-controls">
+          <button id="btn-start-lobby-game" class="btn btn-success btn-full hidden">Oyunu Başlat 🚀</button>
+          <button id="btn-leave-lobby" class="btn btn-outline btn-full">Lobiden Çık</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- Ana JS (ES Module) -->
+  <script type="module" src="src/app.js?v=20260822_sync10"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
+</body>
+</html>

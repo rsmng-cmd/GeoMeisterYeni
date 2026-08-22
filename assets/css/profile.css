@@ -1,0 +1,492 @@
+/* profile.css — Profil Modalı */
+
+#profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+}
+#profile-modal.hidden { display: none !important; }
+
+.profile-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5,8,20,0.85);
+  backdrop-filter: blur(8px);
+}
+
+.profile-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: var(--space-2xl);
+  background: rgba(15,22,41,0.97);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+  animation: scaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.profile-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 auto var(--space-md);
+  box-shadow: 0 0 20px var(--color-accent-glow);
+}
+
+.profile-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.profile-email {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* Genel istatistikler */
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.profile-stat-card {
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.profile-stat-value {
+  display: block;
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+  font-weight: 800;
+  color: var(--color-accent);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.profile-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* Mod bazlı istatistikler */
+.profile-mode-stats {
+  margin-bottom: var(--space-xl);
+}
+
+.profile-mode-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-sm);
+}
+
+.profile-mode-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.profile-mode-info {
+  flex: 1;
+}
+
+.profile-mode-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+}
+
+.profile-mode-detail {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.profile-mode-best {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+/* Heatmap (Performans Isı Haritası) */
+.profile-heatmap-section {
+  margin-bottom: var(--space-xl);
+}
+
+.heatmap-mode-selector {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.hm-tab {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: rgba(255,255,255,0.03);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hm-tab.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.heatmap-summary-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  justify-content: space-between;
+}
+
+.hm-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+}
+
+.hm-badge.strong { color: #10b981; border-color: rgba(16,185,129,0.3); }
+.hm-badge.medium { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+.hm-badge.weak   { color: #ef4444; border-color: rgba(239,68,68,0.3); }
+
+.profile-heatmap-map {
+  width: 100%;
+  height: 240px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(99,102,241,0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.hm-empty-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15,22,41,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  backdrop-filter: blur(2px);
+}
+
+.hm-popup {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #f8fafc;
+}
+
+/* Seviye tamamlama paneli (game panel içinde) */
+.level-complete-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.06);
+  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.level-complete-panel.hidden { display: none; }
+
+.level-complete-header {
+  text-align: center;
+}
+
+.level-complete-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-xs);
+}
+
+.level-complete-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.level-complete-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.lc-stat {
+  text-align: center;
+  padding: var(--space-sm);
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.lc-stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  line-height: 1.2;
+}
+
+.lc-stat-label {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.level-complete-msg {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--space-sm);
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-md);
+}
+
+.level-complete-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* ═══════ MOBİL UYUMLULUK ═══════ */
+
+@media (max-width: 768px) {
+  /* Oyun ekranı: harita tam ekran, panel altta overlay */
+  #game-screen {
+    flex-direction: column;
+  }
+
+  #map-container {
+    height: 55vh;
+    flex: none;
+  }
+
+  .game-panel {
+    width: 100%;
+    height: 45vh;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: var(--space-md) var(--space-md);
+    gap: var(--space-sm);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .game-panel-header {
+    padding-bottom: var(--space-sm);
+  }
+
+  .game-panel-title {
+    font-size: 0.8rem;
+  }
+
+  .question-city {
+    font-size: 1.4rem;
+  }
+
+  .question-country {
+    font-size: 0.85rem;
+  }
+
+  .game-question {
+    padding: var(--space-sm) var(--space-md);
+    gap: 2px;
+  }
+
+  .game-score-box {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .score-value {
+    font-size: 1.25rem;
+  }
+
+  /* Sonuç paneli mobilde kompakt */
+  .round-result-panel {
+    padding: var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .result-score {
+    font-size: 1.3rem;
+  }
+
+  #next-btn {
+    padding: var(--space-sm);
+    font-size: 0.85rem;
+  }
+
+  /* Ana sayfa header mobil */
+  .home-header {
+    padding: var(--space-sm) var(--space-md);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .home-header-right {
+    gap: var(--space-sm);
+  }
+
+  .user-stats {
+    gap: var(--space-sm);
+  }
+
+  .stat-value {
+    font-size: 1rem;
+  }
+
+  .home-hero {
+    padding: var(--space-xl) var(--space-md) var(--space-md);
+  }
+
+  .home-hero-title {
+    font-size: 1.5rem;
+  }
+
+  .home-main {
+    padding: 0 var(--space-md) var(--space-xl);
+  }
+
+  .modes-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+  }
+
+  .mode-card {
+    padding: var(--space-md);
+  }
+
+  .mode-card-icon {
+    font-size: 1.8rem;
+  }
+
+  .mode-card-name {
+    font-size: 1rem;
+  }
+
+  /* Profil modal mobil */
+  .profile-card {
+    padding: var(--space-lg);
+    max-width: 95vw;
+  }
+
+  .profile-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.2rem;
+  }
+
+  .profile-name {
+    font-size: 1.2rem;
+  }
+
+  /* Level complete panel mobil */
+  .level-complete-panel {
+    padding: var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .level-complete-icon {
+    font-size: 2rem;
+  }
+
+  .lc-stat-value {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .modes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #map-container {
+    height: 50vh;
+  }
+
+  .game-panel {
+    height: 50vh;
+  }
+
+  .home-header-right .user-stats {
+    display: none;
+  }
+}
+
+/* Dokunma koruması — butonlara yanlışlıkla çift dokunmayı önle */
+/* ═══ Açık Mod (Light Theme) İyileştirmeleri — Profil & Modallar ═══ */
+[data-theme="light"] .profile-card,
+[data-theme="light"] .settings-modal-card {
+  background: #ffffff !important;
+  border-color: rgba(79, 70, 229, 0.3) !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
+}
+
+[data-theme="light"] .profile-name,
+[data-theme="light"] .profile-stat-value,
+[data-theme="light"] .profile-mode-name,
+[data-theme="light"] .profile-section-title,
+[data-theme="light"] .profile-mode-best {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .profile-stat-label,
+[data-theme="light"] .profile-mode-detail,
+[data-theme="light"] .profile-email {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .profile-stat-card,
+[data-theme="light"] .profile-mode-card {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}

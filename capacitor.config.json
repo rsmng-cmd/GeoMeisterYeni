@@ -1,0 +1,8 @@
+{
+  "appId": "com.geomeister.app",
+  "appName": "GeoMeister",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

@@ -1,0 +1,529 @@
+// OnlineUI.js — Online Hub, Matchmaking Modal, Özel Odalar & Canlı Maç HUD
+import onlineService, { getRankByElo } from '../services/OnlineService.js?v=20260811';
+import matchmakingEngine from '../services/MatchmakingEngine.js?v=20260811';
+import roomManager from '../services/RoomManager.js?v=20260811';
+
+export class OnlineUI {
+  constructor() {
+    this.container = null;
+    this.currentUser = null;
+    this.selectedModeId = 'world'; // 'world' veya 'europe'
+    this.onStartMatchCallback = null;
+  }
+
+  init(user, onStartMatch) {
+    this.currentUser = user;
+    this.onStartMatchCallback = onStartMatch;
+    this._injectModalHTML();
+    this._bindEvents();
+  }
+
+  _injectModalHTML() {
+    let existing = document.getElementById('online-hub-modal');
+    if (!existing) {
+      const modalHTML = `
+      <div id="online-hub-modal" class="modal-backdrop hidden">
+        <div class="online-modal-card">
+          <button id="btn-close-online-modal" class="btn-close-modal">✕</button>
+          
+          <div class="online-header">
+            <h2 class="online-title">🌐 GeoMeister Online</h2>
+            <p class="online-subtitle">Rakiplerinle kapış, ELO puanı kazan ve rütbeni yükselt!</p>
+          </div>
+
+          <!-- Mod Seçimi (Dünya / Avrupa / Türkiye / Afrika) -->
+          <div class="online-mode-selector">
+            <button class="online-mode-tab active" data-mode="world">🌍 Dünya</button>
+            <button class="online-mode-tab" data-mode="europe">🇪🇺 Avrupa</button>
+            <button class="online-mode-tab" data-mode="turkey">🇹🇷 Türkiye</button>
+            <button class="online-mode-tab" data-mode="africa">🦁 Afrika</button>
+          </div>
+
+          <!-- Oyuncu ELO & Rütbe Kartı -->
+          <div id="online-user-rank-card" class="user-rank-card">
+            <div class="rank-badge-icon">❓</div>
+            <div class="rank-info">
+              <div class="rank-name" style="color: #94a3b8">Yerleşme Aşamasında (0/5)</div>
+              <div class="rank-elo-details">5 Yerleşme Maçından 0'ı Tamamlandı</div>
+            </div>
+          </div>
+
+          <!-- Ana Eylemler (1v1 Matchmaking, 2v2 Takımlı Maç & Özel Oda) -->
+          <div class="online-actions-grid">
+            <div class="online-action-card primary" id="card-start-matchmaking">
+              <div class="action-icon">⚔️</div>
+              <div class="action-title">1v1 Hızlı Eşleşme</div>
+              <div class="action-desc">Kendi seviyendeki oyuncularla 1v1 rekabet et</div>
+              <button class="btn btn-primary btn-full mt-auto" id="btn-search-match">1v1 Maç Ara</button>
+            </div>
+
+            <div class="online-action-card primary" style="border-color: rgba(6,182,212,0.4);" id="card-start-2v2-matchmaking">
+              <div class="action-icon">👥⚔️</div>
+              <div class="action-title">2v2 Takımlı Maç</div>
+              <div class="action-desc">Takım arkadaşınla ortalama mesafede rakip takımı yen!</div>
+              <button class="btn btn-full mt-auto" style="background: linear-gradient(135deg, #06b6d4, #3b82f6); color: white;" id="btn-search-2v2-match">2v2 Takım Maçı Ara</button>
+            </div>
+
+            <div class="online-action-card secondary">
+              <div class="action-icon">🏠</div>
+              <div class="action-title">Özel Oda</div>
+              <div class="action-desc">Arkadaşlarınla 5 kişiye kadar özel maç yap</div>
+              <div class="room-action-buttons">
+                <button class="btn btn-secondary" id="btn-create-room">Oda Kur</button>
+                <button class="btn btn-outline" id="btn-open-join-input">Odaya Katıl</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Eşleşme Arama Animasyon Ekranı -->
+          <div id="matchmaking-search-overlay" class="search-overlay hidden">
+            <div class="spinner-pulse"></div>
+            <div class="search-title">Rakip Aranıyor...</div>
+            <div id="search-status-text" class="search-status">±20 ELO yakınlığında oyuncu aranıyor [0s]</div>
+            <button id="btn-cancel-search" class="btn btn-outline btn-sm mt-md">Aramayı İptal Et</button>
+          </div>
+
+          <!-- Odaya Katılma Kod Girdisi -->
+          <div id="join-room-container" class="join-room-box hidden mt-md">
+            <input type="text" id="input-room-code" placeholder="Oda Kodu (Örn: GEO-8492)" maxlength="8" class="input-room-code" />
+            <button id="btn-join-room-submit" class="btn btn-primary">Katıl</button>
+          </div>
+
+          <!-- Özel Oda Lobisi -->
+          <div id="room-lobby-overlay" class="room-lobby-box hidden">
+            <div class="lobby-header">
+              <h3>Özel Oda Lobisi</h3>
+              <div id="lobby-code-display" class="lobby-code-badge">GEO-XXXX</div>
+            </div>
+            <div class="lobby-players-list" id="lobby-players-list">
+              <!-- Oyuncular buraya gelecek -->
+            </div>
+            <div class="lobby-controls">
+              <button id="btn-start-lobby-game" class="btn btn-success btn-full hidden">Oyunu Başlat 🚀</button>
+              <button id="btn-leave-lobby" class="btn btn-outline btn-full">Lobiden Çık</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+      existing = document.getElementById('online-hub-modal');
+    }
+    this.container = existing;
+  }
+
+  _bindEvents() {
+    // Kapat Butonu
+    document.getElementById('btn-close-online-modal')?.addEventListener('click', () => this.hide());
+    document.addEventListener('click', (e) => {
+      if (e.target?.closest?.('#btn-close-online-modal')) {
+        this.hide();
+      }
+    });
+
+    // Mod Sekmeleri (Dünya / Avrupa)
+    this.container.querySelectorAll('.online-mode-tab').forEach(tab => {
+      tab.addEventListener('click', async (e) => {
+        this.container.querySelectorAll('.online-mode-tab').forEach(t => t.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        this.selectedModeId = e.currentTarget.dataset.mode;
+        await this.refreshUserRankCard();
+      });
+    });
+
+    // 1v1 Eşleşme Ara Butonu
+    document.getElementById('btn-search-match')?.addEventListener('click', () => this._startMatchmaking());
+    document.getElementById('btn-search-2v2-match')?.addEventListener('click', () => this._start2v2Matchmaking());
+    document.getElementById('btn-cancel-search')?.addEventListener('click', () => this._cancelMatchmaking());
+
+    // Özel Oda Butonları
+    document.getElementById('btn-create-room')?.addEventListener('click', () => this._handleCreateRoom());
+    document.getElementById('btn-open-join-input')?.addEventListener('click', () => {
+      document.getElementById('join-room-container')?.classList.toggle('hidden');
+    });
+    document.getElementById('btn-join-room-submit')?.addEventListener('click', () => this._handleJoinRoom());
+    document.getElementById('btn-start-lobby-game')?.addEventListener('click', () => this._handleStartLobbyGame());
+    document.getElementById('btn-leave-lobby')?.addEventListener('click', () => this._handleLeaveLobby());
+  }
+
+  _start2v2Matchmaking() {
+    if (this._checkGuestUser()) return;
+
+    if (!this.teamTeammate) {
+      this._show2v2TeammateModal();
+      return;
+    }
+
+    const overlay = document.getElementById('matchmaking-search-overlay');
+    const statusText = document.getElementById('search-status-text');
+    if (overlay) overlay.classList.remove('hidden');
+
+    matchmakingEngine.start2v2Search({
+      user: this.currentUser,
+      teammate: this.teamTeammate,
+      modeId: this.selectedModeId,
+      onStatusChange: ({ text }) => {
+        if (statusText) statusText.textContent = text;
+      },
+      onMatchFound: (matchData) => {
+        if (overlay) overlay.classList.add('hidden');
+        this.hide();
+        this.onStartMatchCallback?.(matchData);
+      },
+    });
+  }
+
+  _show2v2TeammateModal() {
+    let modal = document.getElementById('teammate-select-modal');
+    if (modal) modal.remove();
+
+    const modalHTML = `
+      <div id="teammate-select-modal" class="modal-backdrop">
+        <div class="online-modal-card" style="max-width: 400px; text-align: center; padding: 24px;">
+          <div style="font-size: 40px; margin-bottom: 8px;">⚔️</div>
+          <h3 style="font-size: 18px; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">2v2 Takımlı Maç Lobisi</h3>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
+            2v2 Maç arayabilmek için takımında en az 1 arkadaşın olmalıdır! Lobiye arkadaşını davet et veya test için bot takım arkadaşı ekle.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-invite-friend-2v2" class="btn btn-primary btn-full">👥 Arkadaş Davet Et</button>
+            <button id="btn-add-bot-teammate" class="btn btn-secondary btn-full">🤝 Bot Efe 🤝 (Hızlı Oyna / Test)</button>
+            <button id="btn-close-teammate-modal" class="btn btn-outline btn-full">İptal</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('btn-invite-friend-2v2')?.addEventListener('click', () => {
+      document.getElementById('teammate-select-modal')?.remove();
+      const friendsBtn = document.getElementById('nav-friends-btn');
+      if (friendsBtn) friendsBtn.click();
+    });
+
+    document.getElementById('btn-add-bot-teammate')?.addEventListener('click', () => {
+      document.getElementById('teammate-select-modal')?.remove();
+      this.teamTeammate = { uid: 'bot_efe', displayName: 'Bot Efe 🤝', isBot: true };
+      this._start2v2Matchmaking();
+    });
+
+    document.getElementById('btn-close-teammate-modal')?.addEventListener('click', () => {
+      document.getElementById('teammate-select-modal')?.remove();
+    });
+  }
+
+  async show() {
+    console.log('[OnlineUI] show called, container:', this.container);
+    if (this._checkGuestUser()) {
+      return;
+    }
+    if (!this.container) {
+      this._injectModalHTML();
+      this._bindEvents();
+    }
+    this.container?.classList.remove('hidden');
+    try {
+      await this.refreshUserRankCard();
+    } catch (e) {
+      console.warn('[OnlineUI] Error refreshing rank card:', e);
+    }
+  }
+
+  _checkGuestUser() {
+    if (!this.currentUser || this.currentUser.isGuest || this.currentUser.uid?.startsWith('guest')) {
+      this.showGuestRestrictionModal();
+      return true;
+    }
+    return false;
+  }
+
+  showGuestRestrictionModal() {
+    let existing = document.getElementById('guest-restriction-modal');
+    if (existing) existing.remove();
+
+    const modalHTML = `
+      <div id="guest-restriction-modal" class="modal-backdrop">
+        <div class="online-modal-card text-center" style="max-width: 420px; padding: 28px;">
+          <div style="font-size: 48px; margin-bottom: 12px;">🔒</div>
+          <h2 style="font-size: 22px; font-weight: 800; color: #f8fafc; margin-bottom: 10px;">Misafir Hesap Kısıtlaması</h2>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
+            Online 1v1 maç yapmak, arkadaşlarınla yarışmak ve ELO sıralamasına girmek için lütfen ücretsiz bir üyelik oluşturun veya giriş yapın.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-guest-auth-redirect" class="btn btn-primary btn-full">Kayıt Ol / Giriş Yap 🚀</button>
+            <button id="btn-guest-modal-close" class="btn btn-outline btn-full">Vazgeç</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('btn-guest-auth-redirect')?.addEventListener('click', () => {
+      document.getElementById('guest-restriction-modal')?.remove();
+      this.hide();
+      if (this.onRequireAuthCallback) {
+        this.onRequireAuthCallback();
+      }
+    });
+
+    document.getElementById('btn-guest-modal-close')?.addEventListener('click', () => {
+      document.getElementById('guest-restriction-modal')?.remove();
+    });
+  }
+
+  hide() {
+    this.container?.classList.add('hidden');
+    matchmakingEngine.cancelSearch();
+    roomManager.stopListening();
+  }
+
+  async refreshUserRankCard() {
+    const stats = await onlineService.getPlayerOnlineStats(this.currentUser, this.selectedModeId);
+    const rankCard = document.getElementById('online-user-rank-card');
+    if (!rankCard) return;
+
+    const rank = stats.rank;
+    const modeNames = {
+      world: 'Dünya',
+      europe: 'Avrupa',
+      turkey: 'Türkiye',
+      africa: 'Afrika',
+    };
+    const modeName = modeNames[this.selectedModeId] || 'Dünya';
+    const placementText = stats.isRanked 
+      ? `${stats.elo} ELO • ${stats.wins} Galibiyet / ${stats.losses} Mağlubiyet`
+      : `5 Yerleşme Maçından ${stats.matchesPlayed}'i Tamamlandı`;
+
+    rankCard.style.borderColor = rank.color;
+    rankCard.innerHTML = `
+      <div class="rank-badge-icon">${rank.icon}</div>
+      <div class="rank-info">
+        <div class="rank-name" style="color: ${rank.color}">${rank.name} (${modeName})</div>
+        <div class="rank-elo-details">${placementText}</div>
+      </div>
+    `;
+  }
+
+  _startMatchmaking() {
+    if (this._checkGuestUser()) return;
+    const overlay = document.getElementById('matchmaking-search-overlay');
+    const statusText = document.getElementById('search-status-text');
+    overlay?.classList.remove('hidden');
+
+    matchmakingEngine.startSearch({
+      user: this.currentUser,
+      modeId: this.selectedModeId,
+      onStatusChange: ({ text }) => {
+        if (statusText) statusText.innerText = text;
+      },
+      onMatchFound: (matchData) => {
+        overlay?.classList.add('hidden');
+        this.hide();
+        if (this.onStartMatchCallback) {
+          this.onStartMatchCallback({
+            modeId: this.selectedModeId,
+            matchData,
+          });
+        }
+      },
+    });
+  }
+
+  _cancelMatchmaking() {
+    matchmakingEngine.cancelSearch();
+    document.getElementById('matchmaking-search-overlay')?.classList.add('hidden');
+  }
+
+  async _handleCreateRoom() {
+    try {
+      const room = await roomManager.createRoom(this.currentUser, this.selectedModeId);
+      this._renderLobby(room);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async _handleJoinRoom() {
+    const codeInput = document.getElementById('input-room-code');
+    const code = codeInput?.value?.trim();
+    if (!code) {
+      alert('Lütfen geçerli bir oda kodu girin!');
+      return;
+    }
+
+    try {
+      const room = await roomManager.joinRoom(code, this.currentUser);
+      this._renderLobby(room);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  _renderLobby(room) {
+    const lobbyBox = document.getElementById('room-lobby-overlay');
+    const codeDisplay = document.getElementById('lobby-code-display');
+    const playersList = document.getElementById('lobby-players-list');
+    const startBtn = document.getElementById('btn-start-lobby-game');
+
+    lobbyBox?.classList.remove('hidden');
+    if (codeDisplay) codeDisplay.innerText = room.code;
+
+    const myUid = this.currentUser?.uid || room.hostUid;
+    const isHost = room.hostUid === myUid || room.players.some(p => p.uid === myUid && p.isHost);
+    if (startBtn) {
+      if (isHost) startBtn.classList.remove('hidden');
+      else startBtn.classList.add('hidden');
+    }
+
+    const renderPlayers = (players) => {
+      if (playersList && players) {
+        playersList.innerHTML = players.map(p => `
+          <div class="lobby-player-item">
+            <span class="player-avatar">👤</span>
+            <span class="player-name">${p.displayName} ${p.isHost ? '👑 (Kurucu)' : ''}</span>
+          </div>
+        `).join('');
+      }
+    };
+
+    // Anlık oyuncu listesini hemen göster
+    renderPlayers(room.players);
+
+    roomManager.listenToRoom(room.code, (updatedRoom) => {
+      if (updatedRoom.status === 'playing') {
+        roomManager.stopListening();
+        lobbyBox?.classList.add('hidden');
+        this.hide();
+        if (this.onStartMatchCallback) {
+          const opponentPlayer = updatedRoom.players.find(p => p.uid !== myUid) || {
+            uid: 'guest_bot',
+            displayName: 'GeoBot',
+            elo: 50,
+            rank: { name: 'Bronz', color: '#cd7f32', icon: '🥉' }
+          };
+          this.onStartMatchCallback({
+            modeId: updatedRoom.modeId,
+            matchData: {
+              matchId: updatedRoom.roomId || `room_${updatedRoom.code}`,
+              roomCode: updatedRoom.code,
+              isBot: updatedRoom.players.length === 1,
+              opponent: opponentPlayer,
+              questions: updatedRoom.questions || room.questions || [],
+              players: updatedRoom.players,
+            },
+          });
+        }
+        return;
+      }
+
+      renderPlayers(updatedRoom.players);
+    });
+  }
+
+  _handleStartLobbyGame() {
+    if (roomManager.currentRoom) {
+      roomManager.startGame(roomManager.currentRoom.code);
+    }
+  }
+
+  _handleLeaveLobby() {
+    roomManager.stopListening();
+    document.getElementById('room-lobby-overlay')?.classList.add('hidden');
+  }
+
+  /**
+   * Canlı Online Maç Bittiğinde ELO Güncelleme Sonuç Ekranı Gösterir
+   * @param {object} result — Maç sonucu
+   * @param {object} callbacks — { onReturnHome, onSearchMatch, onCreateRoom }
+   */
+  showOnlineGameOverModal(result, callbacks = {}) {
+    const existing = document.getElementById('online-gameover-modal');
+    if (existing) existing.remove();
+
+    const { onReturnHome, onSearchMatch, onCreateRoom } = callbacks;
+
+    const me = result.me || { displayName: 'Siz', score: 0 };
+    const opponent = result.opponent || { displayName: 'Rakip', score: 0 };
+    const rankInfo = result.eloResult || { newElo: 1000, rank: null };
+    const isWin = !!result.isWin;
+    const isForfeit = !!result.isForfeit;
+
+    const rankDisplay = rankInfo.rank
+      ? `<div class="rank-badge-inline" style="color: ${rankInfo.rank.color || '#38bdf8'}">${rankInfo.rank.icon || '🏆'} ${rankInfo.rank.name || ''}</div>`
+      : '';
+
+    const eloText = rankInfo.eloDelta ? (rankInfo.eloDelta > 0 ? `+${rankInfo.eloDelta} ELO` : `${rankInfo.eloDelta} ELO`) : (isWin ? '+10 ELO' : '-10 ELO');
+
+    const headerTitle = isForfeit
+      ? (isWin ? '🏆 TEBRİKLER KAZANDINIZ!' : '🚪 MAÇTAN AYRILDINIZ')
+      : (isWin ? '🏆 KAZANDINIZ!' : '💔 KAYBETTİNİZ');
+
+    const headerSubtitle = isForfeit
+      ? (isWin ? 'Rakip oyundan ayrıldı, maçı hükmen kazandınız! 🥇' : 'Oyunu terk ettiğiniz için hükmen mağlup sayıldınız.')
+      : (isWin ? 'Tebrikler, rakibinizi mağlup ettiniz!' : 'Bu sefer olmadı, tekrar deneyin!');
+
+    const modalHTML = `
+      <div id="online-gameover-modal" class="modal-backdrop" style="z-index: 999999 !important; display: flex !important; visibility: visible !important; opacity: 1 !important;">
+        <div class="online-modal-card gameover-card">
+          <div class="gameover-header ${isWin ? 'win' : 'loss'}">
+            <h2>${headerTitle}</h2>
+            <p>${headerSubtitle}</p>
+          </div>
+
+          <div class="score-comparison">
+            <div class="player-score-box me">
+              <div class="box-label">${me.displayName || 'Siz'}</div>
+              <div class="box-score">${(me.score || 0).toLocaleString('tr-TR')} p</div>
+            </div>
+            <div class="vs-divider">VS</div>
+            <div class="player-score-box opponent">
+              <div class="box-label">${opponent.displayName || 'Rakip'}</div>
+              <div class="box-score">${(opponent.score || 0).toLocaleString('tr-TR')} p</div>
+            </div>
+          </div>
+
+          <!-- ELO Değişim & Rütbe -->
+          <div class="elo-change-card">
+            <div class="elo-delta ${isWin ? 'positive' : 'negative'}">
+              ${eloText}
+            </div>
+            <div class="new-elo-value">Yeni ELO: <strong>${rankInfo.newElo ?? 1000}</strong></div>
+            ${rankDisplay}
+          </div>
+
+          <!-- 3 Aksiyon Butonu -->
+          <div class="gameover-actions-grid">
+            <button id="btn-return-home-online" class="btn btn-secondary btn-full">Ana Menüye Dön 🏠</button>
+            <button id="btn-search-match-again" class="btn btn-primary btn-full">Tekrar Eşleşme ⚔️</button>
+            <button id="btn-create-room-gameover" class="btn btn-outline btn-full">Oda Oluştur 🏠</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('btn-return-home-online')?.addEventListener('click', () => {
+      document.getElementById('online-gameover-modal')?.remove();
+      document.getElementById('online-live-toast')?.remove();
+      if (onReturnHome) onReturnHome();
+      else window.location.hash = 'home';
+    });
+
+    document.getElementById('btn-search-match-again')?.addEventListener('click', () => {
+      document.getElementById('online-gameover-modal')?.remove();
+      document.getElementById('online-live-toast')?.remove();
+      if (onSearchMatch) onSearchMatch();
+    });
+
+    document.getElementById('btn-create-room-gameover')?.addEventListener('click', () => {
+      document.getElementById('online-gameover-modal')?.remove();
+      document.getElementById('online-live-toast')?.remove();
+      if (onCreateRoom) onCreateRoom();
+    });
+  }
+}
+
+export default new OnlineUI();

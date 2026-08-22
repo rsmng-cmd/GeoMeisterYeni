@@ -1,0 +1,271 @@
+/* leaderboard.css — GeoMeister Liderlik Tablosu */
+
+#leaderboard-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.leaderboard-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  gap: var(--space-lg);
+}
+
+/* ─── Header ────────────────────────────────────── */
+.leaderboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.leaderboard-header > :first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.leaderboard-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff, var(--color-accent-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  flex: 1;
+}
+
+.leaderboard-mode-tabs {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.lb-tab {
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.lb-tab.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+  box-shadow: var(--shadow-glow);
+}
+
+.lb-tab:hover:not(.active) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+/* ─── Table Wrapper ─────────────────────────────── */
+.leaderboard-table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  border-radius: var(--radius-xl);
+  background: rgba(15,22,41,0.7);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(16px);
+}
+
+/* ─── Table ─────────────────────────────────────── */
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.leaderboard-table th {
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  background: rgba(10,14,26,0.9);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--color-border);
+  backdrop-filter: blur(8px);
+}
+
+.lb-row {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background var(--transition-fast);
+}
+
+.lb-row:hover { background: rgba(255,255,255,0.04); }
+.lb-row:last-child { border-bottom: none; }
+
+.lb-row.current-user {
+  background: rgba(99,102,241,0.08);
+  border-left: 3px solid var(--color-accent);
+}
+
+.leaderboard-table td {
+  padding: var(--space-md) var(--space-lg);
+  vertical-align: middle;
+}
+
+/* ─── Rank ──────────────────────────────────────── */
+.lb-rank { width: 60px; }
+
+.rank-badge {
+  font-size: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+
+.rank-num {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+/* ─── Player ─────────────────────────────────────── */
+.lb-player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.lb-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.lb-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.you-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: var(--radius-full);
+  color: var(--color-accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+/* ─── Score & Date ───────────────────────────────── */
+.lb-score {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  letter-spacing: -0.02em;
+}
+
+.lb-date {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* ─── Empty / Error states ───────────────────────── */
+.lb-empty, .lb-error {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-lg);
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+}
+
+/* ─── Skeleton ───────────────────────────────────── */
+.skeleton {
+  height: 16px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 0%,
+    var(--color-border) 50%,
+    var(--color-bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-row td > .skeleton { margin: 4px 0; }
+
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ═══ Açık Mod (Light Theme) İyileştirmeleri — Liderlik Tablosu ═══ */
+[data-theme="light"] .leaderboard-card {
+  background: #ffffff !important;
+  border-color: rgba(79, 70, 229, 0.3) !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
+}
+
+[data-theme="light"] .leaderboard-title,
+[data-theme="light"] .lb-name,
+[data-theme="light"] .lb-score {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .leaderboard-tab {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .leaderboard-tab.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .leaderboard-table th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] .leaderboard-table tr:hover td {
+  background: #f8fafc !important;
+}
+
+[data-theme="light"] .leaderboard-table tr.my-row td {
+  background: rgba(79, 70, 229, 0.08) !important;
+}
