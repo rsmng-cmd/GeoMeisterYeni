@@ -281,9 +281,9 @@ export class OnlineUI {
     });
   }
 
-  hide() {
+  hide(force = false) {
     const lobbyEl = document.getElementById('room-lobby-overlay');
-    const isInLobby = (lobbyEl && !lobbyEl.classList.contains('hidden')) || !!roomManager.currentRoom;
+    const isInLobby = !force && ((lobbyEl && !lobbyEl.classList.contains('hidden')) || !!roomManager.currentRoom);
 
     if (isInLobby) {
       this._showLeaveLobbyConfirmation(() => {
@@ -295,8 +295,12 @@ export class OnlineUI {
     }
 
     this.container?.classList.add('hidden');
+    document.getElementById('room-lobby-overlay')?.classList.add('hidden');
+    document.getElementById('matchmaking-search-overlay')?.classList.add('hidden');
     matchmakingEngine.cancelSearch();
-    roomManager.stopListening();
+    if (!force) {
+      roomManager.stopListening();
+    }
   }
 
   async refreshUserRankCard() {
@@ -340,7 +344,7 @@ export class OnlineUI {
       },
       onMatchFound: (matchData) => {
         overlay?.classList.add('hidden');
-        this.hide();
+        this.hide(true);
         if (this.onStartMatchCallback) {
           this.onStartMatchCallback({
             modeId: this.selectedModeId,
@@ -381,6 +385,28 @@ export class OnlineUI {
     }
   }
 
+  async reopenLobby(roomCode, isHost = false) {
+    if (!roomCode) return;
+    if (!this.container) {
+      this._injectModalHTML();
+      this._bindEvents();
+    }
+    this.container?.classList.remove('hidden');
+
+    let room = null;
+    if (isHost) {
+      room = await roomManager.resetRoomToLobby(roomCode);
+    } else {
+      room = await roomManager.joinRoom(roomCode, this.currentUser).catch(async () => {
+        return await roomManager.resetRoomToLobby(roomCode);
+      });
+    }
+
+    if (room) {
+      this._renderLobby(room);
+    }
+  }
+
   _renderLobby(room) {
     const lobbyBox = document.getElementById('room-lobby-overlay');
     const codeDisplay = document.getElementById('lobby-code-display');
@@ -415,7 +441,7 @@ export class OnlineUI {
       if (updatedRoom.status === 'playing') {
         roomManager.stopListening();
         lobbyBox?.classList.add('hidden');
-        this.hide();
+        this.hide(true); // Direkt başla — lobiden çıkılsın mı uyarısı verme!
         if (this.onStartMatchCallback) {
           const opponentPlayer = updatedRoom.players.find(p => p.uid !== myUid) || {
             uid: 'guest_bot',
@@ -428,6 +454,9 @@ export class OnlineUI {
             matchData: {
               matchId: updatedRoom.roomId || `room_${updatedRoom.code}`,
               roomCode: updatedRoom.code,
+              isRoomMatch: true,
+              isFriendMatch: true,
+              isHost: isHost,
               isBot: updatedRoom.players.length === 1,
               opponent: opponentPlayer,
               questions: updatedRoom.questions || room.questions || [],
@@ -497,25 +526,28 @@ export class OnlineUI {
   /**
    * Canlı Online Maç Bittiğinde ELO Güncelleme Sonuç Ekranı Gösterir
    * @param {object} result — Maç sonucu
-   * @param {object} callbacks — { onReturnHome, onSearchMatch, onCreateRoom }
+   * @param {object} callbacks — { onReturnHome, onSearchMatch, onCreateRoom, onReturnToLobby }
    */
   showOnlineGameOverModal(result, callbacks = {}) {
     const existing = document.getElementById('online-gameover-modal');
     if (existing) existing.remove();
 
-    const { onReturnHome, onSearchMatch, onCreateRoom } = callbacks;
+    const { onReturnHome, onSearchMatch, onCreateRoom, onReturnToLobby } = callbacks;
 
     const me = result.me || { displayName: 'Siz', score: 0 };
     const opponent = result.opponent || { displayName: 'Rakip', score: 0 };
     const rankInfo = result.eloResult || { newElo: 1000, rank: null };
     const isWin = !!result.isWin;
     const isForfeit = !!result.isForfeit;
+    const isRoomMatch = !!(result.isRoomMatch || result.roomCode);
 
-    const rankDisplay = rankInfo.rank
+    const rankDisplay = (!isRoomMatch && rankInfo.rank)
       ? `<div class="rank-badge-inline" style="color: ${rankInfo.rank.color || '#38bdf8'}">${rankInfo.rank.icon || '🏆'} ${rankInfo.rank.name || ''}</div>`
       : '';
 
-    const eloText = rankInfo.eloDelta ? (rankInfo.eloDelta > 0 ? `+${rankInfo.eloDelta} ELO` : `${rankInfo.eloDelta} ELO`) : (isWin ? '+10 ELO' : '-10 ELO');
+    const eloText = isRoomMatch 
+      ? `🏠 Özel Oda Maçı`
+      : (rankInfo.eloDelta ? (rankInfo.eloDelta > 0 ? `+${rankInfo.eloDelta} ELO` : `${rankInfo.eloDelta} ELO`) : (isWin ? '+10 ELO' : '-10 ELO'));
 
     let headerTitle = isWin ? '🏆 KAZANDINIZ!' : '💔 KAYBETTİNİZ';
     let headerSubtitle = isWin ? 'Tebrikler, rakibinizi mağlup ettiniz!' : 'Bu sefer olmadı, tekrar deneyin!';
@@ -529,6 +561,20 @@ export class OnlineUI {
         headerSubtitle = result.forfeitDetails || '10 saniye sekme dışı kaldığınız veya 30 saniye hareketsiz (AFK) kaldığınız için maç kaybedildi.';
       }
     }
+
+    // Aksiyon Butonları: Özel oda maçında "Lobiye Dön" göster, rastgele eşleşmede "Tekrar Eşleşme" göster
+    const actionButtonsHTML = isRoomMatch ? `
+      <div class="gameover-actions-grid" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+        <button id="btn-return-lobby-online" class="btn btn-primary btn-full" style="font-size: 15px; font-weight: 800; background: linear-gradient(135deg, #06b6d4, #3b82f6); box-shadow: 0 4px 15px rgba(6,182,212,0.35);">Lobiye Dön 🏠</button>
+        <button id="btn-return-home-online" class="btn btn-secondary btn-full">Ana Menü 🚪</button>
+      </div>
+    ` : `
+      <div class="gameover-actions-grid">
+        <button id="btn-return-home-online" class="btn btn-secondary btn-full">Ana Menüye Dön 🏠</button>
+        <button id="btn-search-match-again" class="btn btn-primary btn-full">Tekrar Eşleşme ⚔️</button>
+        <button id="btn-create-room-gameover" class="btn btn-outline btn-full">Oda Oluştur 🏠</button>
+      </div>
+    `;
 
     const modalHTML = `
       <div id="online-gameover-modal" class="modal-backdrop" style="z-index: 999999 !important; display: flex !important; visibility: visible !important; opacity: 1 !important;">
@@ -552,24 +598,25 @@ export class OnlineUI {
 
           <!-- ELO Değişim & Rütbe -->
           <div class="elo-change-card">
-            <div class="elo-delta ${isWin ? 'positive' : 'negative'}">
+            <div class="elo-delta ${isRoomMatch ? '' : (isWin ? 'positive' : 'negative')}" style="${isRoomMatch ? 'color: #38bdf8; font-size: 1.1rem;' : ''}">
               ${eloText}
             </div>
-            <div class="new-elo-value">Yeni ELO: <strong>${rankInfo.newElo ?? 1000}</strong></div>
+            ${isRoomMatch ? '<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Oda Kodu: ' + (result.roomCode || '') + '</div>' : `<div class="new-elo-value">Yeni ELO: <strong>${rankInfo.newElo ?? 1000}</strong></div>`}
             ${rankDisplay}
           </div>
 
-          <!-- 3 Aksiyon Butonu -->
-          <div class="gameover-actions-grid">
-            <button id="btn-return-home-online" class="btn btn-secondary btn-full">Ana Menüye Dön 🏠</button>
-            <button id="btn-search-match-again" class="btn btn-primary btn-full">Tekrar Eşleşme ⚔️</button>
-            <button id="btn-create-room-gameover" class="btn btn-outline btn-full">Oda Oluştur 🏠</button>
-          </div>
+          ${actionButtonsHTML}
         </div>
       </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    document.getElementById('btn-return-lobby-online')?.addEventListener('click', () => {
+      document.getElementById('online-gameover-modal')?.remove();
+      document.getElementById('online-live-toast')?.remove();
+      if (onReturnToLobby) onReturnToLobby({ roomCode: result.roomCode, isHost: result.isHost });
+    });
 
     document.getElementById('btn-return-home-online')?.addEventListener('click', () => {
       document.getElementById('online-gameover-modal')?.remove();

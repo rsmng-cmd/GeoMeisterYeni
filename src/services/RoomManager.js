@@ -232,6 +232,59 @@ export class RoomManager {
   }
 
   /**
+   * Maç bittikten sonra odayı yeniden lobi durumuna getirir (yeni sorularla)
+   */
+  async resetRoomToLobby(roomCode) {
+    if (!roomCode) return null;
+    const formattedCode = roomCode.trim().toUpperCase();
+    let room = this.currentRoom;
+
+    if (!room || room.code !== formattedCode) {
+      try {
+        room = JSON.parse(localStorage.getItem(`geomeister_room_${formattedCode}`) || 'null');
+      } catch {}
+    }
+
+    const fns = await getFsFns();
+    if (db && fns && (!room || !room.players || room.players.length === 0)) {
+      try {
+        const snap = await fns.getDoc(fns.doc(db, 'customRooms', formattedCode));
+        if (snap.exists()) {
+          room = snap.data();
+        }
+      } catch (e) {
+        console.warn('[RoomManager] Fetch room for reset warning:', e);
+      }
+    }
+
+    if (!room) return null;
+
+    const mode = getModeById(room.modeId) || getModeById('world');
+    const dataSource = mode?.dataSource || room.modeId || 'world';
+    const newQuestions = getSeededQuestions(dataSource, `${formattedCode}_${Date.now()}`, 10);
+
+    room.status = 'waiting';
+    room.questions = newQuestions;
+    room.currentRound = 1;
+    this.currentRoom = room;
+
+    try {
+      localStorage.setItem(`geomeister_room_${formattedCode}`, JSON.stringify(room));
+    } catch {}
+
+    if (db && fns) {
+      fns.setDoc(fns.doc(db, 'customRooms', formattedCode), {
+        status: 'waiting',
+        questions: newQuestions,
+        currentRound: 1,
+        resetAt: fns.serverTimestamp(),
+      }, { merge: true }).catch(e => console.warn('[RoomManager] Firestore reset room warning:', e));
+    }
+
+    return room;
+  }
+
+  /**
    * Odadaki Değişiklikleri Dinler
    */
   async listenToRoom(roomCode, onChange) {

@@ -479,6 +479,13 @@ class App {
         this.gameUI.hide();
         onlineUI.showOnlineGameOverModal(result, {
           onReturnHome: () => this._showHome(),
+          onReturnToLobby: async ({ roomCode, isHost }) => {
+            this._showHome();
+            setTimeout(async () => {
+              onlineUI.currentUser = this.currentUser;
+              await onlineUI.reopenLobby(roomCode, isHost);
+            }, 200);
+          },
           onSearchMatch: () => {
             this._showHome();
             setTimeout(() => {
