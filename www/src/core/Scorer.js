@@ -46,18 +46,15 @@ export function distanceToScore(distanceKm, multiplier = 1.0, modeId = null, tim
 
   if (modeId === 'turkey' || multiplier === 0.7) {
     // Türkiye Modu Puanlaması:
-    // 0 – 10 km: 1000 puan (tam puan)
-    // 10 – 200 km: her km için -2 puan (1000 -> 620)
-    // 200 – 350 km: her km için -3 puan (620 -> 170)
-    // 350+ km: her km için -1 puan (170 -> 0)
-    if (distanceKm <= 10) {
+    // 0 – 20 km: 1000 puan (tam puan)
+    // 20 – 120 km: her km için -6 puan (1000 -> 400)
+    // 120+ km: her km için -2 puan (400 -> 0)
+    if (distanceKm <= 20) {
       score = 1000;
-    } else if (distanceKm <= 200) {
-      score = 1000 - (distanceKm - 10) * 2;
-    } else if (distanceKm <= 350) {
-      score = 620 - (distanceKm - 200) * 3;
+    } else if (distanceKm <= 120) {
+      score = 1000 - (distanceKm - 20) * 6;
     } else {
-      score = 170 - (distanceKm - 350) * 1;
+      score = 400 - (distanceKm - 120) * 2;
     }
   } else {
     // Dünya & Diğer Modlar: Normal Ölçek (Max 1000 Puan)

@@ -6,7 +6,6 @@
 const KEY_LABELS = {
   nextQuestion: 'Sonraki Soru',
   home: 'Ana Menüye Dön',
-  hint: 'İpucu Kullan',
   zoomIn: 'Harita Yakınlaştır',
   zoomOut: 'Harita Uzaklaştır',
 };

@@ -59,16 +59,9 @@ export class GameUI {
     document.getElementById('round-counter').textContent = `${roundNum} / ${totalRounds}`;
 
     // Üst Bar Sağ Skor Kutusu & İpucu
+    // Üst Bar Sağ Skor Kutusu
     const topRightScoreEl = document.querySelector('.game-top-right');
     if (topRightScoreEl) topRightScoreEl.style.display = 'flex';
-
-    // Hint butonunu yenile
-    const hintBtn = document.getElementById('hint-btn');
-    if (hintBtn) {
-      hintBtn.style.display = 'inline-flex';
-      hintBtn.disabled = false;
-      hintBtn.textContent = '💡 İpucu (1/1)';
-    }
 
     // Sonuç panellerini gizle
     this._hideResult();
@@ -251,10 +244,6 @@ export class GameUI {
     const counterEl = document.getElementById('round-counter');
     if (counterEl) counterEl.textContent = `${state.roundNum} / ${state.totalRounds}`;
 
-    // Hint butonunu kapalı tut (online modda ipucu kullanılmaz)
-    const hintBtn = document.getElementById('hint-btn');
-    if (hintBtn) hintBtn.style.display = 'none';
-
     // 3 Saniyelik Konum & Skor Pop-up Görünümü
     let onlineToast = document.getElementById('online-live-toast');
     if (!onlineToast) {
@@ -333,18 +322,6 @@ export class GameUI {
           nextBtn.style.pointerEvents = 'none';
           setTimeout(() => { if (nextBtn) nextBtn.style.pointerEvents = 'auto'; }, 600);
           this.callbacks.onNext?.();
-        }
-        return;
-      }
-
-      if (e.target?.closest?.('#hint-btn')) {
-        const hintBtn = document.getElementById('hint-btn');
-        if (hintBtn && !hintBtn.disabled) {
-          const used = this.callbacks.onHint?.();
-          if (used !== false) {
-            hintBtn.disabled = true;
-            hintBtn.textContent = '💡 Kullanıldı';
-          }
         }
         return;
       }

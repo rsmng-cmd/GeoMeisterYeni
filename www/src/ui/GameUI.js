@@ -9,7 +9,6 @@ export class GameUI {
    * @param {Function} callbacks.onNext - Sonraki soruya geç
    * @param {Function} callbacks.onHome - Ana sayfaya dön
    * @param {Function} callbacks.onReplay - Aynı modu tekrar oyna
-   * @param {Function} callbacks.onHint - İpucu kullan
    */
   constructor(callbacks) {
     this.callbacks = callbacks;
@@ -28,9 +27,6 @@ export class GameUI {
     this._hideGameComplete();
   }
 
-  /**
-   * Yeni tur başladığında çağrılır.
-   */
   /**
    * Yeni tur başladığında çağrılır.
    */
@@ -58,17 +54,9 @@ export class GameUI {
     document.getElementById('round-progress-bar').style.width = `${progress}%`;
     document.getElementById('round-counter').textContent = `${roundNum} / ${totalRounds}`;
 
-    // Üst Bar Sağ Skor Kutusu & İpucu
+    // Üst Bar Sağ Skor Kutusu
     const topRightScoreEl = document.querySelector('.game-top-right');
     if (topRightScoreEl) topRightScoreEl.style.display = 'flex';
-
-    // Hint butonunu yenile
-    const hintBtn = document.getElementById('hint-btn');
-    if (hintBtn) {
-      hintBtn.style.display = 'inline-flex';
-      hintBtn.disabled = false;
-      hintBtn.textContent = '💡 İpucu (1/1)';
-    }
 
     // Sonuç panellerini gizle
     this._hideResult();
@@ -102,9 +90,6 @@ export class GameUI {
    */
   onGuessResult(result) {
     const { score, distanceStr, totalScore, roundNum, totalRounds } = result;
-
-    // Hint gizle
-    document.getElementById('click-hint')?.classList.add('hidden');
 
     // Toplam skor güncelle
     document.getElementById('total-score').textContent = totalScore.toLocaleString('tr-TR');
@@ -141,7 +126,6 @@ export class GameUI {
     const { levelScore, runTotalScore, totalScore, maxPossible, mode, levelConfig, isPassed, passScore } = result;
 
     this._hideResult();
-    document.getElementById('click-hint')?.classList.add('hidden');
 
     const panel = document.getElementById('level-complete-panel');
     if (!panel) return;
@@ -251,10 +235,6 @@ export class GameUI {
     const counterEl = document.getElementById('round-counter');
     if (counterEl) counterEl.textContent = `${state.roundNum} / ${state.totalRounds}`;
 
-    // Hint butonunu kapalı tut (online modda ipucu kullanılmaz)
-    const hintBtn = document.getElementById('hint-btn');
-    if (hintBtn) hintBtn.style.display = 'none';
-
     // 3 Saniyelik Konum & Skor Pop-up Görünümü
     let onlineToast = document.getElementById('online-live-toast');
     if (!onlineToast) {
@@ -333,18 +313,6 @@ export class GameUI {
           nextBtn.style.pointerEvents = 'none';
           setTimeout(() => { if (nextBtn) nextBtn.style.pointerEvents = 'auto'; }, 600);
           this.callbacks.onNext?.();
-        }
-        return;
-      }
-
-      if (e.target?.closest?.('#hint-btn')) {
-        const hintBtn = document.getElementById('hint-btn');
-        if (hintBtn && !hintBtn.disabled) {
-          const used = this.callbacks.onHint?.();
-          if (used !== false) {
-            hintBtn.disabled = true;
-            hintBtn.textContent = '💡 Kullanıldı';
-          }
         }
         return;
       }

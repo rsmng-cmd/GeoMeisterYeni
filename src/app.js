@@ -69,7 +69,6 @@ class App {
         const nextConfig = getLevelConfig(nextLevelNum);
         this._startLevelGame(this.currentMode, nextConfig, true);
       },
-      onHint: () => this.activeGame?.useHint(),
     });
 
     // Lazy UI instances
@@ -645,18 +644,6 @@ class App {
         e.preventDefault();
         if (this.currentScreen === 'game') {
           this._goHome();
-        }
-      } else if (e.code === bindings.hint) {
-        e.preventDefault();
-        if (this.currentScreen === 'game') {
-          const hintBtn = document.getElementById('hint-btn');
-          if (hintBtn && !hintBtn.disabled) {
-            const used = this.activeGame?.useHint();
-            if (used !== false) {
-              hintBtn.disabled = true;
-              hintBtn.textContent = '💡 Kullanıldı';
-            }
-          }
         }
       }
     });
