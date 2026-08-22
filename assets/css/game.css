@@ -278,22 +278,8 @@
   border-color: rgba(79, 70, 229, 0.3) !important;
 }
 
-[data-theme="light"] .question-city {
-  color: #0f172a !important;
-  text-shadow: none !important;
-}
-
-[data-theme="light"] .question-label {
-  color: #64748b !important;
-}
-
 .game-progress {
   width: 100%;
-  max-width: 320px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
   max-width: 320px;
   display: flex;
   align-items: center;
