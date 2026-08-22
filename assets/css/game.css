@@ -2,10 +2,10 @@
 
 #game-screen {
   display: flex;
-  position: absolute;
+  position: fixed;
   inset: 0;
   height: 100dvh;
-  height: 100vh;
+  min-height: 100vh;
   height: 100%;
   width: 100vw;
   width: 100%;
@@ -27,6 +27,8 @@
 .leaflet-container {
   background: #152d4a !important; /* Canlı derin deniz mavisi taban (siyah görünmeyi önler) */
   font-family: 'Inter', sans-serif;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* GPU Donanım İvmesi — 60 FPS Yağ Gibi Akıcı Zoom & Sürükleme */
