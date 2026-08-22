@@ -122,20 +122,28 @@ export class OnlineUI {
       }
     });
 
-    // Mod Sekmeleri (Dünya / Avrupa)
-    this.container.querySelectorAll('.online-mode-tab').forEach(tab => {
-      tab.addEventListener('click', async (e) => {
-        this.container.querySelectorAll('.online-mode-tab').forEach(t => t.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        this.selectedModeId = e.currentTarget.dataset.mode;
+    // Mod Sekmeleri (Dünya / Avrupa / Türkiye / Afrika)
+    document.addEventListener('click', async (e) => {
+      const tab = e.target?.closest?.('.online-mode-tab');
+      if (tab) {
+        document.querySelectorAll('.online-mode-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        this.selectedModeId = tab.dataset.mode || tab.getAttribute('data-mode') || 'world';
+        console.log('[OnlineUI] Mode changed to:', this.selectedModeId);
         await this.refreshUserRankCard();
-      });
+      }
     });
 
     // 1v1 Eşleşme Ara Butonu
-    document.getElementById('btn-search-match')?.addEventListener('click', () => this._startMatchmaking());
-    document.getElementById('btn-search-2v2-match')?.addEventListener('click', () => this._start2v2Matchmaking());
-    document.getElementById('btn-cancel-search')?.addEventListener('click', () => this._cancelMatchmaking());
+    document.addEventListener('click', (e) => {
+      if (e.target?.closest?.('#btn-search-match')) {
+        this._startMatchmaking();
+      } else if (e.target?.closest?.('#btn-search-2v2-match')) {
+        this._start2v2Matchmaking();
+      } else if (e.target?.closest?.('#btn-cancel-search')) {
+        this._cancelMatchmaking();
+      }
+    });
 
     // Özel Oda Butonları
     document.getElementById('btn-create-room')?.addEventListener('click', () => this._handleCreateRoom());

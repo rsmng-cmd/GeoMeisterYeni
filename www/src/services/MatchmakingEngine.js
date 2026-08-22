@@ -71,7 +71,7 @@ export class MatchmakingEngine {
             onMatchFound({
               matchId: data.matchId,
               isBot: false,
-              modeId,
+              modeId: data.modeId || modeId,
               questions: data.questions || [],
               opponent: data.opponent,
               player: {
@@ -88,6 +88,8 @@ export class MatchmakingEngine {
       }
     }
 
+    let isSearching = false;
+
     this.queueTimer = setInterval(async () => {
       secondsElapsed++;
 
@@ -96,54 +98,56 @@ export class MatchmakingEngine {
         return;
       }
 
-      // 1. Aşama (0 - 6 saniye): ±20 ELO yakınlığındaki gerçek rakipleri ara
-      if (secondsElapsed <= 6) {
-        this._notifyStatus(`Eşleşme aranıyor... (±20 ELO) [${secondsElapsed}s]`, secondsElapsed);
-        try {
+      // Çakışan istekleri önle
+      if (isSearching) return;
+      isSearching = true;
+
+      try {
+        // 1. Aşama (0 - 6 saniye): ±20 ELO yakınlığındaki gerçek rakipleri ara
+        if (secondsElapsed <= 6) {
+          this._notifyStatus(`Eşleşme aranıyor... (±20 ELO) [${secondsElapsed}s]`, secondsElapsed);
           const match = await this._findRealOpponent(user, modeId, stats.elo, 20);
           if (match && this.activeSearchId === searchId) {
             this._cleanupQueueDoc();
             this._handleMatchSuccess(searchId, match, onMatchFound, modeId, stats, user);
             return;
           }
-        } catch (e) {
-          console.warn('[Matchmaking] Stage 1 opponent search error:', e);
-        }
-      } 
-      // 2. Aşama (6 - 15 saniye): Tüm ELO seviyelerinde gerçek oyuncu ara
-      else if (secondsElapsed <= 15) {
-        this._notifyStatus(`Uygun rakip aranıyor... (Genişletilmiş ELO) [${secondsElapsed}s]`, secondsElapsed);
-        try {
+        } 
+        // 2. Aşama (6 - 15 saniye): Tüm ELO seviyelerinde gerçek oyuncu ara
+        else if (secondsElapsed <= 15) {
+          this._notifyStatus(`Uygun rakip aranıyor... (Genişletilmiş ELO) [${secondsElapsed}s]`, secondsElapsed);
           const match = await this._findRealOpponent(user, modeId, stats.elo, Infinity);
           if (match && this.activeSearchId === searchId) {
             this._cleanupQueueDoc();
             this._handleMatchSuccess(searchId, match, onMatchFound, modeId, stats, user);
             return;
           }
-        } catch (e) {
-          console.warn('[Matchmaking] Stage 2 opponent search error:', e);
+        } 
+        // 3. Aşama (15. saniye): Canlı rakip bulunamadığında rütbeye özel Bot Ata
+        else {
+          clearInterval(this.queueTimer);
+          this._cleanupQueueDoc();
+          this._notifyStatus(`Rakip bulundu! Maç başlatılıyor...`, 15);
+          
+          const botOpponent = this._generateBotOpponent(stats.elo, user);
+          
+          onMatchFound({
+            matchId: `bot_match_${Date.now()}`,
+            isBot: true,
+            modeId,
+            player: {
+              uid: user?.uid || 'guest',
+              displayName: user?.displayName || 'Oyuncu',
+              elo: stats.elo,
+              rank: stats.rank,
+            },
+            opponent: botOpponent,
+          });
         }
-      } 
-      // 3. Aşama (15. saniye): Canlı rakip bulunamadığında rütbeye özel Bot Ata
-      else {
-        clearInterval(this.queueTimer);
-        this._cleanupQueueDoc();
-        this._notifyStatus(`Rakip bulundu! Maç başlatılıyor...`, 15);
-        
-        const botOpponent = this._generateBotOpponent(stats.elo, user);
-        
-        onMatchFound({
-          matchId: `bot_match_${Date.now()}`,
-          isBot: true,
-          modeId,
-          player: {
-            uid: user?.uid || 'guest',
-            displayName: user?.displayName || 'Oyuncu',
-            elo: stats.elo,
-            rank: stats.rank,
-          },
-          opponent: botOpponent,
-        });
+      } catch (e) {
+        console.warn('[Matchmaking] Opponent search tick error:', e);
+      } finally {
+        isSearching = false;
       }
     }, 1000);
   }
@@ -240,7 +244,7 @@ export class MatchmakingEngine {
         fns.where('status', '==', 'waiting')
       );
 
-      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1200));
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3000));
       const snap = await Promise.race([fns.getDocs(q), timeoutPromise]);
 
       if (!snap || !snap.docs) return null;
@@ -249,26 +253,28 @@ export class MatchmakingEngine {
       for (const docSnap of snap.docs) {
         const data = docSnap.data();
         if (data.uid !== user.uid) {
-          // Kuyruk zaman aşımı kontrolü (18 saniyeden eski kayıtları temizle)
+          // Kuyruk zaman aşımı kontrolü (25 saniyeden eski kayıtları temizle)
           const joinedTime = typeof data.joinedAt === 'number'
             ? data.joinedAt
             : (data.joinedAt?.toMillis ? data.joinedAt.toMillis() : new Date(data.joinedAt || 0).getTime());
 
-          if (!joinedTime || now - joinedTime > 18000) {
+          if (!joinedTime || now - joinedTime > 25000) {
             fns.deleteDoc(docSnap.ref).catch(() => {});
             continue;
           }
 
           const eloDiff = Math.abs((data.elo || 50) - playerElo);
           if (eloDiff <= maxEloDiff) {
-            // Eşleşme bulundu: Ortak maç ve tohum oluştur
-            const matchId = `live_match_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            // Deterministik ve ortak Maç ID'si (UID sırasına göre)
+            const sortedUids = [user.uid, data.uid].sort();
+            const matchId = `match_${sortedUids.join('_')}_${Math.floor(now / 30000)}`;
             const questions = getSeededQuestions(modeId, matchId, 10);
 
             // 1) Rakibin kuyruk belgesini 'matched' olarak güncelle (Rakibin ekranı da maça başlasın)
             await fns.setDoc(docSnap.ref, {
               status: 'matched',
               matchId,
+              modeId,
               questions,
               opponent: {
                 uid: user.uid,
