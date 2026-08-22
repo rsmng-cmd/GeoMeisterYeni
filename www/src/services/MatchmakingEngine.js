@@ -265,13 +265,21 @@ export class MatchmakingEngine {
 
           const eloDiff = Math.abs((data.elo || 50) - playerElo);
           if (eloDiff <= maxEloDiff) {
-            // Deterministik ve ortak Maç ID'si (UID sırasına göre)
+            // Eşleşme Çakışmasını Önleme (Single Matchmaker Protocol):
+            // Sadece alfabetik olarak küçük UID'ye sahip oyuncu veya kuyrukta daha eski olan oyuncu kurucu (Master) olur.
+            // Diğer oyuncu kuyruk dinleyicisinden (onSnapshot) maça davet edilir.
+            const isMaster = user.uid < data.uid;
+            if (!isMaster && (now - joinedTime < 4000)) {
+              // Karşı taraf kurucu; 4 saniye boyunca onun eşleştirmesini bekle
+              continue;
+            }
+
+            // Deterministik ve ortak Maç ID'si
             const sortedUids = [user.uid, data.uid].sort();
             const matchId = `match_${sortedUids.join('_')}_${Math.floor(now / 30000)}`;
             const questions = getSeededQuestions(modeId, matchId, 10);
 
-            // 1) Rakibin kuyruk belgesini 'matched' olarak güncelle (Rakibin ekranı da maça başlasın)
-            await fns.setDoc(docSnap.ref, {
+            const matchPayload = {
               status: 'matched',
               matchId,
               modeId,
@@ -284,9 +292,30 @@ export class MatchmakingEngine {
                 isBot: false,
               },
               matchedAt: Date.now(),
-            }, { merge: true });
+            };
 
-            // 2) Canlı maç belgesini başlat
+            // 1) Rakibin kuyruk belgesini 'matched' olarak güncelle (Rakibin ekranı maça başlar)
+            await fns.setDoc(docSnap.ref, matchPayload, { merge: true });
+
+            // 2) Kendi kuyruk belgemizi de 'matched' yapalım
+            if (this.queueDocRef) {
+              await fns.setDoc(this.queueDocRef, {
+                status: 'matched',
+                matchId,
+                modeId,
+                questions,
+                opponent: {
+                  uid: data.uid,
+                  displayName: data.displayName || 'Rakip',
+                  elo: data.elo || 50,
+                  rank: getRankByElo(data.elo || 50),
+                  isBot: false,
+                },
+                matchedAt: Date.now(),
+              }, { merge: true }).catch(() => {});
+            }
+
+            // 3) Canlı maç belgesini başlat
             try {
               const liveRef = fns.doc(db, 'liveMatches', matchId);
               await fns.setDoc(liveRef, {
@@ -299,7 +328,7 @@ export class MatchmakingEngine {
                   [data.uid]: { displayName: data.displayName || 'Rakip', ready: true },
                 },
                 createdAt: fns.serverTimestamp(),
-              });
+              }, { merge: true });
             } catch (err) {
               console.warn('[Matchmaking] Live match init error:', err);
             }
