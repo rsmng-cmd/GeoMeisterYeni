@@ -169,11 +169,12 @@ export class OnlineService {
       rank: null,
     };
 
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const ref = fsFns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
+        const ref = fns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
         const snap = await Promise.race([
-          fsFns.getDoc(ref),
+          fns.getDoc(ref),
           new Promise(resolve => setTimeout(() => resolve(null), 2000)),
         ]);
         if (snap && snap.exists()) {

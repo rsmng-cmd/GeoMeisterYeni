@@ -461,10 +461,11 @@ export class OnlineGameEngine {
       localStorage.setItem(`gm_live_${this.matchId}`, JSON.stringify(obj));
     } catch {}
 
-    if (db && fsFns) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
-        const ref = fsFns.doc(db, 'liveMatches', this.matchId);
-        await fsFns.setDoc(ref, {
+        const ref = fns.doc(db, 'liveMatches', this.matchId);
+        await fns.setDoc(ref, {
           [key]: guess,
           updatedAt: Date.now(),
         }, { merge: true });
