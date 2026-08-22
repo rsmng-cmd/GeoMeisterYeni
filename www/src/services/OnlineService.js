@@ -2,12 +2,17 @@
 import { db, firebaseReady } from '../config/firebase.js';
 
 let fsFns = null;
-if (firebaseReady && db) {
-  try {
-    fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  } catch (e) {
-    console.warn('[OnlineService] Firestore module load warning:', e.message);
+async function getFsFns() {
+  if (fsFns) return fsFns;
+  if (firebaseReady && db) {
+    try {
+      fsFns = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return fsFns;
+    } catch (e) {
+      console.warn('[OnlineService] Firestore module load warning:', e.message);
+    }
   }
+  return null;
 }
 
 export const UNRANKED = { id: 'unranked', name: 'Yerleşme Aşamasında', icon: '❓', color: '#94a3b8', botAvgScore: 350 };
@@ -50,16 +55,15 @@ export class OnlineService {
       isRanked: false,
     };
 
-    try {
-      const localData = localStorage.getItem(storageKey);
-      if (localData) {
-        stats = { ...stats, ...JSON.parse(localData) };
-      }
-
-      if (user && !user.isGuest && db && fsFns && navigator.onLine) {
-        const ref = fsFns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
-        const snap = await fsFns.getDoc(ref);
-        if (snap.exists()) {
+    const fns = await getFsFns();
+    if (user && !user.isGuest && db && fns) {
+      try {
+        const ref = fns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
+        const snap = await Promise.race([
+          fns.getDoc(ref),
+          new Promise(r => setTimeout(() => r(null), 2500))
+        ]);
+        if (snap && snap.exists()) {
           const data = snap.data();
           stats = {
             elo: data.elo ?? stats.elo,
@@ -70,11 +74,16 @@ export class OnlineService {
           };
           localStorage.setItem(storageKey, JSON.stringify(stats));
         }
-      }
-    } catch (e) {
-      if (navigator.onLine && !e?.message?.includes('offline') && e?.code !== 'unavailable') {
+      } catch (e) {
         console.warn('[OnlineService] Stats fetch warning:', e.message);
       }
+    } else {
+      try {
+        const localData = localStorage.getItem(storageKey);
+        if (localData) {
+          stats = { ...stats, ...JSON.parse(localData) };
+        }
+      } catch {}
     }
 
     const matchesCount = Number(stats.matchesPlayed) || 0;
@@ -116,10 +125,11 @@ export class OnlineService {
     }
 
     // Firestore Güncelle
-    if (user && !user.isGuest && db && fsFns) {
+    const fns = await getFsFns();
+    if (user && !user.isGuest && db && fns) {
       try {
-        const ref = fsFns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
-        await fsFns.setDoc(ref, {
+        const ref = fns.doc(db, 'userOnlineStats', `${uid}_${modeId}`);
+        await fns.setDoc(ref, {
           uid,
           displayName: user.displayName || 'Anonim',
           modeId,
@@ -127,7 +137,7 @@ export class OnlineService {
           matchesPlayed: newMatchesPlayed,
           wins: newWins,
           losses: newLosses,
-          updatedAt: fsFns.serverTimestamp(),
+          updatedAt: fns.serverTimestamp(),
         }, { merge: true });
       } catch (e) {
         console.warn('[OnlineService] Firestore ELO save error:', e);

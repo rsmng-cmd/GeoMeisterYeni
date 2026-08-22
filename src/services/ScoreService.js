@@ -50,25 +50,27 @@ export class ScoreService {
     }
 
     const { totalScore, rounds, mode, levelConfig } = gameResult;
+    const modeId = mode?.id || 'world';
+    const modeName = mode?.name || 'Dünya';
 
     const scoreEntry = {
       uid: user.uid,
       displayName: user.displayName || 'Anonim',
       isGuest: false,
-      modeId: mode.id,
-      modeName: mode.name,
+      modeId,
+      modeName,
       levelNum: levelConfig?.level || 0,
       totalScore,
-      maxPossible: gameResult.maxPossible,
-      accuracy: Math.round((totalScore / gameResult.maxPossible) * 100),
-      roundCount: rounds.length,
-      rounds: rounds.map((r) => ({
-        city: r.city.name,
-        country: r.city.country,
-        lat: r.city.lat,
-        lng: r.city.lng,
-        score: r.score,
-        distance: Math.round(r.distance),
+      maxPossible: gameResult.maxPossible || 10000,
+      accuracy: Math.round((totalScore / (gameResult.maxPossible || 10000)) * 100),
+      roundCount: (rounds || []).length,
+      rounds: (rounds || []).map((r) => ({
+        city: r.city?.name || r.city || 'Bölge',
+        country: r.city?.country || r.country || '',
+        lat: r.city?.lat ?? r.lat,
+        lng: r.city?.lng ?? r.lng,
+        score: r.score || 0,
+        distance: Math.round(r.distanceKm ?? r.distance ?? 0),
       })),
     };
 
@@ -76,15 +78,22 @@ export class ScoreService {
     scoreEntry.playedAt = new Date().toISOString();
     this._saveToLocal(scoreEntry);
 
-    // Firebase Firestore'a kaydet (Herkesin Liderlik Tablosunda görebilmesi için)
+    // Firebase Firestore'a kaydet (Herkesin Liderlik Tablosunda ve Profilinde görebilmesi için)
     const fns = await getFsFns();
     if (db && fns) {
       try {
         const fsEntry = { ...scoreEntry, playedAt: fns.serverTimestamp() };
         await fns.addDoc(fns.collection(db, 'scores'), fsEntry);
         await this._updateUserProfileFirestore(user, totalScore);
-        await this._updateModeStatsFirestore(user, mode.id, totalScore);
-        console.log('[ScoreService] Skor başarıyla Firebase Firestore\'a kaydedildi.');
+        await this._updateModeStatsFirestore(user, modeId, totalScore);
+
+        // Her sorunun tahminini ısı haritası koleksiyonuna da doğrudan işle
+        for (const r of scoreEntry.rounds) {
+          if (r.lat != null && r.lng != null) {
+            this.saveRoundGuess(user, modeId, r);
+          }
+        }
+        console.log('[ScoreService] Skor ve turlar başarıyla Firebase Firestore\'a kaydedildi.');
       } catch (e) {
         console.warn('[ScoreService] Firestore sync hatası:', e.message);
       }
@@ -174,13 +183,14 @@ export class ScoreService {
       };
     }
 
-    if (this._canUseFirestore(user)) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         const profile = await Promise.race([
           (async () => {
             try {
-              const ref = fsFns.doc(db, 'users', user.uid);
-              const snap = await fsFns.getDoc(ref);
+              const ref = fns.doc(db, 'users', user.uid);
+              const snap = await fns.getDoc(ref);
               if (snap.exists()) return snap.data();
 
               const newProf = {
@@ -190,25 +200,21 @@ export class ScoreService {
                 totalScore: 0,
                 gamesPlayed: 0,
                 bestScore: 0,
-                createdAt: fsFns.serverTimestamp(),
+                createdAt: fns.serverTimestamp(),
               };
-              await fsFns.setDoc(ref, newProf);
+              await fns.setDoc(ref, newProf);
               return newProf;
             } catch (e) {
-              if (navigator.onLine && !e?.message?.includes('offline') && e?.code !== 'unavailable') {
-                console.warn('[ScoreService] Firestore profil okuma hatası:', e.message);
-              }
+              console.warn('[ScoreService] Firestore profil okuma hatası:', e.message);
               return null;
             }
           })(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
         ]);
 
         if (profile) return profile;
       } catch (e) {
-        if (navigator.onLine && !e?.message?.includes('offline') && e?.code !== 'unavailable') {
-          console.warn('[ScoreService] Profil getirme hatası:', e.message);
-        }
+        console.warn('[ScoreService] Profil getirme hatası:', e.message);
       }
     }
 
@@ -226,16 +232,44 @@ export class ScoreService {
     const modeIds = ['world', 'europe', 'turkey', 'africa', 'asia', 'americas'];
     const results = {};
 
+    for (const modeId of modeIds) {
+      results[modeId] = { gamesPlayed: 0, bestScore: 0 };
+    }
+
     if (isGuestUser(user)) {
-      for (const modeId of modeIds) {
-        results[modeId] = { gamesPlayed: 0, bestScore: 0 };
-      }
       return results;
     }
 
+    const fns = await getFsFns();
+    if (db && fns) {
+      try {
+        await Promise.race([
+          (async () => {
+            for (const modeId of modeIds) {
+              const docId = `${user.uid}_${modeId}`;
+              const ref = fns.doc(db, 'userModeStats', docId);
+              const snap = await fns.getDoc(ref);
+              if (snap.exists()) {
+                const data = snap.data();
+                results[modeId].gamesPlayed = data.gamesPlayed || 0;
+                results[modeId].bestScore = data.bestScore || 0;
+              }
+            }
+          })(),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+
+        // Firestore'da kayıt bulunduysa doğrudan döndür
+        const hasData = Object.values(results).some(r => r.gamesPlayed > 0);
+        if (hasData) return results;
+      } catch (e) {
+        console.warn('[ScoreService] Firestore mode stats skip:', e.message);
+      }
+    }
+
+    // Local fallback
     const userUid = user.uid;
     const allLocalScores = JSON.parse(localStorage.getItem('geomeister_scores') || '[]');
-
     for (const modeId of modeIds) {
       const modeScores = allLocalScores.filter((s) =>
         s.modeId === modeId && s.uid === userUid && !isGuestUser(s)
@@ -254,28 +288,6 @@ export class ScoreService {
       results[modeId] = { gamesPlayed, bestScore };
     }
 
-    if (this._canUseFirestore(user)) {
-      try {
-        await Promise.race([
-          (async () => {
-            for (const modeId of modeIds) {
-              const docId = `${user.uid}_${modeId}`;
-              const ref = fsFns.doc(db, 'userModeStats', docId);
-              const snap = await fsFns.getDoc(ref);
-              if (snap.exists()) {
-                const data = snap.data();
-                results[modeId].gamesPlayed = Math.max(results[modeId].gamesPlayed, data.gamesPlayed || 0);
-                results[modeId].bestScore = Math.max(results[modeId].bestScore, data.bestScore || 0);
-              }
-            }
-          })(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 1500))
-        ]);
-      } catch (e) {
-        console.warn('[ScoreService] Firestore mode stats skip:', e.message);
-      }
-    }
-
     return results;
   }
 
@@ -284,22 +296,21 @@ export class ScoreService {
   async getPublicProfile(uid) {
     if (!uid) return null;
 
-    let profileData = null;
-
-    if (this._canUseFirestore() && !uid.startsWith('guest')) {
+    const fns = await getFsFns();
+    if (db && fns && !uid.startsWith('guest')) {
       try {
-        const ref = fsFns.doc(db, 'users', uid);
+        const ref = fns.doc(db, 'users', uid);
         const snap = await Promise.race([
-          fsFns.getDoc(ref),
-          new Promise(resolve => setTimeout(() => resolve(null), 1500)),
+          fns.getDoc(ref),
+          new Promise(resolve => setTimeout(() => resolve(null), 3000)),
         ]);
-        if (snap && snap.exists()) profileData = snap.data();
+        if (snap && snap.exists()) return snap.data();
       } catch (e) {
         console.warn('[ScoreService] Public profile fetch error:', e);
       }
     }
 
-    // LocalStorage fallback & aggregation
+    // LocalStorage fallback
     try {
       const allScores = JSON.parse(localStorage.getItem('geomeister_scores') || '[]');
       const userScores = allScores.filter(s => s.uid === uid);
@@ -307,17 +318,11 @@ export class ScoreService {
         const bestScore = userScores.reduce((max, s) => Math.max(max, s.totalScore || 0), 0);
         const gamesPlayed = userScores.length;
         const displayName = userScores[0].displayName || 'Oyuncu';
-
-        if (!profileData) {
-          profileData = { uid, displayName, bestScore, gamesPlayed, totalScore: bestScore };
-        } else {
-          profileData.bestScore = Math.max(profileData.bestScore || 0, bestScore);
-          profileData.gamesPlayed = Math.max(profileData.gamesPlayed || 0, gamesPlayed);
-        }
+        return { uid, displayName, bestScore, gamesPlayed, totalScore: bestScore };
       }
     } catch {}
 
-    return profileData || { uid, displayName: 'Oyuncu', bestScore: 0, gamesPlayed: 0, totalScore: 0 };
+    return { uid, displayName: 'Oyuncu', bestScore: 0, gamesPlayed: 0, totalScore: 0 };
   }
 
   async getAllModeStatsPublic(uid) {
@@ -328,7 +333,32 @@ export class ScoreService {
       results[modeId] = { gamesPlayed: 0, bestScore: 0 };
     }
 
-    if (!uid) return results;
+    if (!uid || uid.startsWith('guest')) return results;
+
+    const fns = await getFsFns();
+    if (db && fns) {
+      try {
+        for (const modeId of modeIds) {
+          const docId = `${uid}_${modeId}`;
+          const ref = fns.doc(db, 'userModeStats', docId);
+          const snap = await Promise.race([
+            fns.getDoc(ref),
+            new Promise(r => setTimeout(() => r(null), 2000)),
+          ]);
+          if (snap && snap.exists()) {
+            const data = snap.data();
+            results[modeId] = {
+              gamesPlayed: data.gamesPlayed || 0,
+              bestScore: data.bestScore || 0,
+            };
+          }
+        }
+        const hasData = Object.values(results).some(r => r.gamesPlayed > 0);
+        if (hasData) return results;
+      } catch (e) {
+        console.warn('[ScoreService] Public mode stats error:', e);
+      }
+    }
 
     // LocalStorage fallback
     try {
@@ -342,35 +372,13 @@ export class ScoreService {
       }
     } catch {}
 
-    if (this._canUseFirestore() && !uid.startsWith('guest')) {
-      try {
-        for (const modeId of modeIds) {
-          const docId = `${uid}_${modeId}`;
-          const ref = fsFns.doc(db, 'userModeStats', docId);
-          const snap = await Promise.race([
-            fsFns.getDoc(ref),
-            new Promise(r => setTimeout(() => r(null), 1500)),
-          ]);
-          if (snap && snap.exists()) {
-            const data = snap.data();
-            results[modeId] = {
-              gamesPlayed: Math.max(results[modeId].gamesPlayed, data.gamesPlayed || 0),
-              bestScore: Math.max(results[modeId].bestScore, data.bestScore || 0),
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('[ScoreService] Public mode stats error:', e);
-      }
-    }
-
     return results;
   }
 
   /**
    * Herhangi bir tur tahmini yapıldığında (Online, Offline veya Yarım Bırakılan) anında kaydeder.
    */
-  saveRoundGuess(user, modeId, roundData) {
+  async saveRoundGuess(user, modeId, roundData) {
     if (isGuestUser(user)) return;
     try {
       const history = JSON.parse(localStorage.getItem('geomeister_round_history') || '[]');
@@ -390,12 +398,13 @@ export class ScoreService {
     } catch {}
 
     // Firestore'a kaydet (Farklı domainlerde ve cihazlarda ısı haritasının korunması için)
-    if (this._canUseFirestore(user)) {
+    const fns = await getFsFns();
+    if (db && fns) {
       try {
         const entry = {
           uid: user.uid,
           modeId: modeId || 'world',
-          timestamp: fsFns.serverTimestamp(),
+          timestamp: fns.serverTimestamp(),
           lat: roundData.city?.lat ?? roundData.lat,
           lng: roundData.city?.lng ?? roundData.lng,
           city: roundData.city?.name ?? roundData.city ?? 'Bölge',
@@ -403,7 +412,7 @@ export class ScoreService {
           score: roundData.score || 0,
           distance: roundData.distanceKm ?? roundData.distance ?? 0,
         };
-        fsFns.addDoc(fsFns.collection(db, 'roundGuesses'), entry).catch(() => {});
+        fns.addDoc(fns.collection(db, 'roundGuesses'), entry).catch(() => {});
       } catch {}
     }
   }
@@ -459,50 +468,64 @@ export class ScoreService {
 
     const localData = this.getHeatmapData(userOrUid, modeId);
 
-    // Firestore'dan o kullanıcının kamuya açık maçlarını çek
-    if (this._canUseFirestore() && !targetUid.startsWith('guest')) {
+    // Firestore'dan o kullanıcının kamuya açık maçlarını ve tekil soru tahminlerini çek
+    const fns = await getFsFns();
+    if (db && fns && !targetUid.startsWith('guest')) {
       try {
-        const q = fsFns.query(
-          fsFns.collection(db, 'scores'),
-          fsFns.where('uid', '==', targetUid),
-          fsFns.limit(50)
+        const qScores = fns.query(
+          fns.collection(db, 'scores'),
+          fns.where('uid', '==', targetUid),
+          fns.limit(100)
         );
-        const snap = await Promise.race([
-          fsFns.getDocs(q),
-          new Promise(r => setTimeout(() => r(null), 2000))
+        const qGuesses = fns.query(
+          fns.collection(db, 'roundGuesses'),
+          fns.where('uid', '==', targetUid),
+          fns.limit(200)
+        );
+
+        const [snapScores, snapGuesses] = await Promise.all([
+          Promise.race([fns.getDocs(qScores), new Promise(r => setTimeout(() => r(null), 3000))]),
+          Promise.race([fns.getDocs(qGuesses), new Promise(r => setTimeout(() => r(null), 3000))]),
         ]);
 
-        if (snap && snap.docs.length > 0) {
-          const locationStats = new Map();
-          const processRound = (r, mId) => {
-            if (r.lat == null || r.lng == null) return;
-            if (modeId !== 'all' && mId !== modeId) return;
-            const key = `${Number(r.lat).toFixed(3)}_${Number(r.lng).toFixed(3)}`;
-            const existing = locationStats.get(key) || {
-              name: r.city || 'Bölge',
-              country: r.country || '',
-              lat: Number(r.lat),
-              lng: Number(r.lng),
-              totalScore: 0,
-              totalDistance: 0,
-              count: 0,
-            };
-            existing.totalScore += r.score || 0;
-            existing.totalDistance += (r.distanceKm ?? r.distance ?? 0);
-            existing.count += 1;
-            locationStats.set(key, existing);
+        const locationStats = new Map();
+        const processRound = (r, mId) => {
+          if (r.lat == null || r.lng == null) return;
+          if (modeId !== 'all' && mId !== modeId) return;
+          const key = `${Number(r.lat).toFixed(3)}_${Number(r.lng).toFixed(3)}`;
+          const existing = locationStats.get(key) || {
+            name: r.city || 'Bölge',
+            country: r.country || '',
+            lat: Number(r.lat),
+            lng: Number(r.lng),
+            totalScore: 0,
+            totalDistance: 0,
+            count: 0,
           };
+          existing.totalScore += r.score || 0;
+          existing.totalDistance += (r.distanceKm ?? r.distance ?? 0);
+          existing.count += 1;
+          locationStats.set(key, existing);
+        };
 
-          snap.docs.forEach(doc => {
+        if (snapScores && snapScores.docs) {
+          snapScores.docs.forEach(doc => {
             const game = doc.data();
             if (Array.isArray(game.rounds)) {
               game.rounds.forEach(r => processRound(r, game.modeId));
             }
           });
-
-          const fsItems = this._formatHeatmapItems(locationStats);
-          if (fsItems.length > 0) return fsItems;
         }
+
+        if (snapGuesses && snapGuesses.docs) {
+          snapGuesses.docs.forEach(doc => {
+            const r = doc.data();
+            processRound(r, r.modeId);
+          });
+        }
+
+        const fsItems = this._formatHeatmapItems(locationStats);
+        if (fsItems.length > 0) return fsItems;
       } catch (e) {
         console.warn('[ScoreService] Heatmap Firestore error:', e);
       }
@@ -686,3 +709,5 @@ export class ScoreService {
     } catch { return { gamesPlayed: 0, bestScore: 0 }; }
   }
 }
+
+export default new ScoreService();
