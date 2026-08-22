@@ -212,9 +212,16 @@
       </div>
 
       <div class="game-top-right">
-        <div class="game-score-box">
-          <span class="score-label">Toplam Puan</span>
-          <span class="score-value" id="total-score">0</span>
+        <div class="game-score-box" id="game-score-box">
+          <div class="score-text-row">
+            <span class="score-current" id="total-score">0</span>
+            <span class="score-divider">/</span>
+            <span class="score-target" id="target-score">1000</span>
+            <span class="score-unit">Puan</span>
+          </div>
+          <div class="score-bar-track">
+            <div class="score-bar-fill" id="score-progress-bar" style="width: 0%"></div>
+          </div>
         </div>
       </div>
     </header>

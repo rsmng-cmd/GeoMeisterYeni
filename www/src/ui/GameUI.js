@@ -9,6 +9,7 @@ export class GameUI {
    * @param {Function} callbacks.onNext - Sonraki soruya geç
    * @param {Function} callbacks.onHome - Ana sayfaya dön
    * @param {Function} callbacks.onReplay - Aynı modu tekrar oyna
+   * @param {Function} callbacks.onHint - İpucu kullan
    */
   constructor(callbacks) {
     this.callbacks = callbacks;
@@ -18,6 +19,7 @@ export class GameUI {
   show() {
     document.getElementById('game-screen').classList.remove('hidden');
     this._bindButtons();
+    this.resetScoreDisplay();
   }
 
   hide() {
@@ -28,9 +30,38 @@ export class GameUI {
   }
 
   /**
+   * Skor Göstergesini ve Barını Sıfırlar
+   */
+  resetScoreDisplay(targetScore = 1000) {
+    const totalScoreEl = document.getElementById('total-score');
+    if (totalScoreEl) totalScoreEl.textContent = '0';
+
+    const targetScoreEl = document.getElementById('target-score');
+    if (targetScoreEl) targetScoreEl.textContent = targetScore.toLocaleString('tr-TR');
+
+    const scoreBarEl = document.getElementById('score-progress-bar');
+    if (scoreBarEl) {
+      scoreBarEl.style.width = '0%';
+      scoreBarEl.classList.remove('target-reached');
+    }
+  }
+
+  /**
    * Yeni tur başladığında çağrılır.
    */
   onRoundStart(city, roundNum, totalRounds, levelConfig = null) {
+    this.currentLevelConfig = levelConfig;
+    const targetScore = levelConfig?.passScore || (totalRounds * 1000);
+    this.currentTargetScore = targetScore;
+
+    // İlk turda veya yeni oyunda skoru ve hedef barını sıfırdan başlat
+    if (roundNum === 1) {
+      this.resetScoreDisplay(targetScore);
+    } else {
+      const targetScoreEl = document.getElementById('target-score');
+      if (targetScoreEl) targetScoreEl.textContent = targetScore.toLocaleString('tr-TR');
+    }
+
     // Soru güncelle: "Lozan, İsviçre" veya "Kadıköy, İstanbul" formatında göster
     const cityEl = document.getElementById('question-city');
     const countryEl = document.getElementById('question-country');
@@ -43,7 +74,7 @@ export class GameUI {
     const titleEl = document.querySelector('.game-panel-title');
     if (titleEl) {
       if (levelConfig) {
-        titleEl.textContent = `${levelConfig.icon || '🌱'} ${levelConfig.title} • Target: ${levelConfig.passScore} P`;
+        titleEl.textContent = `${levelConfig.icon || '🌱'} ${levelConfig.title} • Hedef: ${levelConfig.passScore} P`;
       } else {
         titleEl.textContent = '🌍 GeoMeister';
       }
@@ -92,7 +123,21 @@ export class GameUI {
     const { score, distanceStr, totalScore, roundNum, totalRounds } = result;
 
     // Toplam skor güncelle
-    document.getElementById('total-score').textContent = totalScore.toLocaleString('tr-TR');
+    const totalScoreEl = document.getElementById('total-score');
+    if (totalScoreEl) totalScoreEl.textContent = totalScore.toLocaleString('tr-TR');
+
+    // Hedef puan barı güncelle
+    const target = this.currentTargetScore || 1000;
+    const percent = Math.min(100, Math.max(0, (totalScore / target) * 100));
+    const scoreBarEl = document.getElementById('score-progress-bar');
+    if (scoreBarEl) {
+      scoreBarEl.style.width = `${percent}%`;
+      if (totalScore >= target) {
+        scoreBarEl.classList.add('target-reached');
+      } else {
+        scoreBarEl.classList.remove('target-reached');
+      }
+    }
 
     // Sonuç panelini göster
     const resultPanel = document.getElementById('round-result-panel');
@@ -126,6 +171,7 @@ export class GameUI {
     const { levelScore, runTotalScore, totalScore, maxPossible, mode, levelConfig, isPassed, passScore } = result;
 
     this._hideResult();
+    document.getElementById('click-hint')?.classList.add('hidden');
 
     const panel = document.getElementById('level-complete-panel');
     if (!panel) return;
